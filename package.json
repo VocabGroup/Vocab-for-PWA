@@ -1,0 +1,55 @@
+{
+  "name": "vocab-pwa",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "postinstall": "node scripts/guard-braces.mjs",
+    "predev": "node scripts/guard-braces.mjs",
+    "prebuild": "node scripts/guard-braces.mjs",
+    "prelint": "node scripts/guard-braces.mjs",
+    "pretest:core": "node scripts/guard-braces.mjs",
+    "pretest:browser": "node scripts/guard-braces.mjs",
+    "prestart": "node scripts/guard-braces.mjs",
+    "dev": "vinext dev",
+    "build": "vinext build && node scripts/prepare-offline.mjs",
+    "build:pages": "npm run build && node scripts/prepare-pages.mjs",
+    "start": "wrangler dev --config dist/server/wrangler.json --local",
+    "test": "npm run test:core && npm run typecheck && npm run build",
+    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs",
+    "test:browser": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
+  },
+  "dependencies": {
+    "next": "16.3.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-icons": "^5.5.0",
+    "scanic": "1.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.63.0",
+    "@cloudflare/workers-types": "5.20261007.1",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.34",
+    "eslint": "9.39.4",
+    "esbuild": "0.28.1",
+    "eslint-config-next": "16.4.0",
+    "react-server-dom-webpack": "19.2.8",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "vinext": "1.0.1",
+    "vite": "8.3.3",
+    "wrangler": "4.148.0"
+  },
+  "overrides": { "sharp": "0.35.5", "fflate": "0.8.3", "braces": "3.0.3" },
+  "type": "module"
+}
