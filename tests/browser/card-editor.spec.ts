@@ -55,6 +55,10 @@ test("menu and card click open shared multi-card editor at selected word; save p
 
 test("Google Chinese lookup uses selected source; blocked Cambridge is not mislabeled",async({page})=>{
   const requests:string[]=[];
+  await page.route("https://translate.googleapis.com/**",route=>{
+    requests.push(route.request().url());
+    return route.fulfill({json:{sentences:[{trans:"persist",orig:"堅持"}]}});
+  });
   await page.route("**/api/dictionary?**",route=>{
     requests.push(route.request().url());
     const url=new URL(route.request().url());
@@ -65,6 +69,7 @@ test("Google Chinese lookup uses selected source; blocked Cambridge is not misla
   await page.getByRole("textbox",{name:"搜尋英文單字或中文解釋"}).fill("堅持");
   await page.getByRole("button",{name:"搜尋",exact:true}).click();
   await expect(page.locator(".lookup-result")).toContainText("Google 中英翻譯");
+  expect(new URL(requests.at(-1)!).hostname).toBe("translate.googleapis.com");
   expect(new URL(requests.at(-1)!).searchParams.get("q")).toBe("堅持");
   await page.getByLabel("查詢來源").selectOption("CAMBRIDGE");
   await page.getByRole("textbox",{name:"搜尋英文單字或中文解釋"}).fill("persist");

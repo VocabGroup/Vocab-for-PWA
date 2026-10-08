@@ -5,6 +5,7 @@ import type { Card, VocabState } from "./types";
 import type { LookupEntry } from "./dictionary-lookup";
 import { speakText } from "./speech";
 import { mergeCardCompletion } from "./card-completion";
+import { lookupBrowserDictionary } from "./browser-dictionary";
 
 type Entry = LookupEntry;
 const historyKey = "vocab-word-search-history";
@@ -22,10 +23,8 @@ export function WordLookupScreen({ state, onClose, onOpenCard, onAdd, onComplete
     setLoading(true);
     const timeout = setTimeout(() => controller.abort(), 40_000);
     try {
-      const response = await fetch(`/api/dictionary?source=${encodeURIComponent(source)}&q=${encodeURIComponent(term)}`, { signal:controller.signal, cache:"no-store" });
-      const payload = await response.json() as { entry?: Entry; error?: string };
-      if (!response.ok || !payload.entry) throw new Error(payload.error || "字典沒有回傳結果");
-      if (abort.current === controller) setResult({ ...payload.entry, notes:`來源：${payload.entry.source}` });
+      const entry = await lookupBrowserDictionary(term,source,controller.signal);
+      if (abort.current === controller) setResult({ ...entry, notes:`來源：${entry.source}` });
     } catch (cause) { if (abort.current === controller) setError(controller.signal.aborted ? "字典查詢逾時，請稍後重試或使用下方的原網站；本機結果仍可使用。" : cause instanceof Error ? cause.message : "線上查詢失敗；仍可查看本機結果。"); }
     finally { clearTimeout(timeout); if (abort.current === controller) setLoading(false); }
   }

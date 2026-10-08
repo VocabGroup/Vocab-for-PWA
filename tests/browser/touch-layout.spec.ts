@@ -18,7 +18,9 @@ test.beforeEach(async ({ context }) => {
 
 test("same-origin manifest and transparent nav; independent lookup, history and import", async ({ page }, info) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/api/dictionary?**", route => route.fulfill({ json:{entry:{word:"resilient",phonetic:"/rɪˈzɪliənt/",partOfSpeech:"adjective",definition:"Able to recover quickly.",exampleSentence:"A resilient person.",exampleTranslation:"",notes:"",source:"Free Dictionary（英文解釋）",sourceUrl:"https://dictionaryapi.dev/"}} }));
+  await page.route("https://*google.com/**",route=>route.abort());
+  await page.route("https://translate.googleapis.com/**",route=>route.abort());
+  await page.route("https://api.dictionaryapi.dev/**", route => route.fulfill({ json:[{word:"resilient",phonetic:"/rɪˈzɪliənt/",meanings:[{partOfSpeech:"adjective",definitions:[{definition:"Able to recover quickly.",example:"A resilient person."}]}]}] }));
   await page.goto("/");
   const manifest = await page.locator('link[rel="manifest"]').getAttribute("href");
   expect(new URL(manifest!, page.url()).origin).toBe(new URL(page.url()).origin);

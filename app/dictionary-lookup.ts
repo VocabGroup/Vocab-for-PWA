@@ -58,7 +58,14 @@ export function parseCambridgeLookup(query: string, html: string): LookupEntry {
 }
 
 async function readSource(url: URL, signal?: AbortSignal): Promise<Response> {
-  const response=await fetch(url, { signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12_000)]) : AbortSignal.timeout(12_000), redirect:"manual", headers:{Accept:"application/json,text/html;q=0.9", "Accept-Language":"zh-TW,zh;q=0.9,en;q=0.8"} });
+  let response: Response;
+  try {
+    response=await fetch(url, { signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(6_000)]) : AbortSignal.timeout(6_000), redirect:"error", headers:{Accept:"application/json,text/html;q=0.9", "Accept-Language":"zh-TW,zh;q=0.9,en;q=0.8"} });
+  } catch (error) {
+    if(signal?.aborted)throw error;
+    if(error instanceof Error && error.name==="TimeoutError")throw new Error("查詢來源逾時，請稍後再試或開啟原網站");
+    throw new Error("查詢來源連線失敗或要求重新導向／驗證，請使用原網站");
+  }
   if (!response.ok) throw new Error(`${url.hostname.includes("cambridge") ? "劍橋辭典" : url.hostname.includes("google") ? "Google 翻譯" : "Free Dictionary"}${response.status===429 ? "請求過多，請稍後重試" : response.status===403 ? "拒絕這台伺服器存取" : response.status===404 ? "找不到這個單字" : "暫時無法查詢"}（HTTP ${response.status}）`);
   return response;
 }
@@ -80,12 +87,12 @@ async function googleLookup(query: string, signal?: AbortSignal): Promise<Lookup
   const fallback=new URL("https://clients5.google.com/translate_a/t");
   for(const [name,value] of [["client","dict-chrome-ex"],["sl",chinese ? "zh-TW":"en"],["tl",chinese ? "en":"zh-TW"],["q",query]])fallback.searchParams.set(name,value);
   try {const payload=await (await readSource(fallback,signal)).json();const translated=Array.isArray(payload) ? text(payload[0]) : "";if(!translated)throw new Error("Google 備援没有回傳翻譯內容");return save(parseGoogleLookup(query,{sentences:[{trans:translated,orig:query}]}));}
-  catch(error){throw new Error(`${primaryError instanceof Error ? `${primaryError.message}；` : ""}${error instanceof Error ? error.message : "Google 翻譯失敗"}`);}
+  catch(error){if(signal?.aborted)throw error;throw new Error(`${primaryError instanceof Error ? `${primaryError.message}；` : ""}${error instanceof Error ? error.message : "Google 翻譯失敗"}`);}
 }
 export async function lookupDictionary(query: string, source: LookupSource, signal?: AbortSignal): Promise<LookupEntry> {
   query=query.trim(); if (!query || query.length>80 || !/^[a-zA-Z\u3400-\u9fff\s'’-]+$/.test(query)) throw new Error("請輸入 80 字內的英文單字、短語或中文解釋");
   const chinese=/[\u3400-\u9fff]/.test(query);
-  if (source==="AUTO") { const failures: string[]=[]; for (const provider of (chinese ? ["GOOGLE"] : ["CAMBRIDGE","GOOGLE","FREE"]) as LookupSource[]) { if (signal?.aborted) throw new Error("查詢已取消"); try { return await lookupDictionary(query,provider,signal); } catch (error) { failures.push(error instanceof Error ? error.message : "查詢失敗"); } } throw new Error(failures.join("；")); }
+  if (source==="AUTO") { const failures: string[]=[]; for (const provider of (chinese ? ["GOOGLE"] : ["GOOGLE","FREE","CAMBRIDGE"]) as LookupSource[]) { if (signal?.aborted) throw new Error("查詢已取消"); try { return await lookupDictionary(query,provider,signal); } catch (error) { failures.push(error instanceof Error ? error.message : "查詢失敗"); } } throw new Error(failures.join("；")); }
   if (source==="GOOGLE") return googleLookup(query,signal);
   if (chinese) throw new Error("此字典僅支援英文；中文查詢請選擇 Google 翻譯");
   if (source==="CAMBRIDGE") { const url=new URL(`https://dictionary.cambridge.org/dictionary/english-chinese-traditional/${encodeURIComponent(query.toLowerCase())}`); const response=await readSource(url,signal); if (Number(response.headers.get("content-length"))>2_000_000) throw new Error("辭典頁面過大"); const html=await response.text(); if (html.length>2_000_000) throw new Error("辭典頁面過大"); return parseCambridgeLookup(query,html); }

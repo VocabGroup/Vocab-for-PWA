@@ -20,7 +20,15 @@ function waitForRetry(ms:number,signal?:AbortSignal):Promise<void>{
 async function fetchAiWithRetry(url:string,init:RequestInit,provider:AppSettings["aiProvider"],signal?:AbortSignal):Promise<Response>{
   for(let attempt=0;attempt<3;attempt++){
     if(signal?.aborted)throw new DOMException("Aborted","AbortError");
-    const response=await fetch(url,{...init,signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000)});
+    let response:Response;
+    try {response=await fetch(url,{...init,signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000)});}
+    catch(error){
+      if(signal?.aborted)throw error;
+      // Do not automatically resend a timed-out generation: the provider may have
+      // completed it and charged the user even though the response was lost.
+      if(error instanceof Error && error.name==="TimeoutError")throw new Error(`${AI_PROVIDERS[provider].name} 回應逾時，請稍後再試。原有資料不會被覆蓋。`);
+      throw new Error(`${AI_PROVIDERS[provider].name} 連線失敗，請確認網路與 API 網址，或稍後再試。原有資料不會被覆蓋。`);
+    }
     if(response.ok)return response;
     const retryable=[429,500,502,503,504].includes(response.status), delay=aiRetryDelay(response,attempt);
     await response.body?.cancel();

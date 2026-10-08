@@ -8,6 +8,7 @@ const { cardSpeechParts } = loadSource("app/card-speech.ts");
 const { requestAi, requestAiCredential, AI_PROVIDERS, aiRetryDelay } = loadSource("app/ai-client.ts");
 const { commitCardEdits } = loadSource("app/card-editing.ts");
 const { parseGoogleLookup, parseCambridgeLookup, lookupDictionary } = loadSource("app/dictionary-lookup.ts");
+const { lookupBrowserDictionary } = loadSource("app/browser-dictionary.ts");
 const {detectBrowserPlatform}=loadSource("app/browser-platform.ts");
 
 test("mobile installation routing distinguishes Safari, third-party browsers and iPad desktop UA",()=>{
@@ -63,6 +64,30 @@ test("Google uses dj=1, caches success, and cools down 429 before reference-proj
     await assert.rejects(lookupDictionary("persist","CAMBRIDGE"),/HTTP 403/);assert.equal((await lookupDictionary("persist","AUTO")).source,"Google 翻譯");
     await assert.rejects(lookupDictionary("https://localhost/admin","GOOGLE"),/請輸入/);
   } finally {globalThis.fetch=originalFetch;}
+});
+
+test("browser lookup avoids the shared server for Google and falls back honestly; abort stops all providers", async()=>{
+  const original=globalThis.fetch, requests=[];
+  globalThis.fetch=async address=>{
+    requests.push(String(address));
+    if(String(address).startsWith("/api/dictionary"))return Response.json({error:"劍橋拒絕存取（HTTP 403）"},{status:502});
+    if(String(address).includes("google"))return new Response("redirect",{status:302});
+    return Response.json([{word:"apple",meanings:[{partOfSpeech:"noun",definitions:[{definition:"A fruit"}]}]}]);
+  };
+  try{
+    const entry=await lookupBrowserDictionary("apple","AUTO");assert.equal(entry.source,"Free Dictionary（英文解釋）");assert.equal(entry.definition,"A fruit");assert.equal(requests.some(url=>url.startsWith("/api/")),false);
+    await assert.rejects(()=>lookupBrowserDictionary("apple","CAMBRIDGE"),/403/);assert.match(requests.at(-1),/source=CAMBRIDGE/);
+    globalThis.fetch=async()=>{throw new DOMException("deadline","TimeoutError");};await assert.rejects(()=>lookupBrowserDictionary("逾時","GOOGLE"),/來源逾時/);
+    const controller=new AbortController();controller.abort();globalThis.fetch=async()=>{throw controller.signal.reason;};await assert.rejects(()=>lookupBrowserDictionary("apple","AUTO",controller.signal),{name:"AbortError"});
+    await assert.rejects(()=>lookupBrowserDictionary("https://localhost","AUTO"),/請輸入/);
+  }finally{globalThis.fetch=original;}
+});
+
+test("AI network/timeout failures are readable and are not silently resubmitted",async()=>{
+  const original=globalThis.fetch;let calls=0;
+  try{globalThis.fetch=async()=>{calls++;throw new DOMException("deadline","TimeoutError");};await assert.rejects(()=>requestAiCredential("gemini","fake","fake","https://example.test","test"),/回應逾時/);assert.equal(calls,1);
+    globalThis.fetch=async()=>{throw new TypeError("Failed to fetch");};await assert.rejects(()=>requestAiCredential("gemini","fake","fake","https://example.test","test"),/連線失敗/);
+  }finally{globalThis.fetch=original;}
 });
 
 test("manual AI completion preserves original fields and never attaches an unrelated sentence translation", () => {
