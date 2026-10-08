@@ -44,6 +44,25 @@ test("same-origin manifest and transparent nav; independent lookup, history and 
   await expect(page.locator(".manage-card-list")).toContainText("resilient"); expect(errors).toEqual([]);
 });
 
+test("lookup input stays at the top through loading, long results, scrolling and viewport resize",async({page})=>{
+  let complete!:()=>void;
+  const pending=new Promise<void>(resolve=>{complete=resolve;});
+  await page.route("https://translate.googleapis.com/**",async route=>{await pending;await route.fulfill({json:{sentences:[{trans:"長解釋。".repeat(300),orig:"anchorword"}]}});});
+  await page.goto("/");await page.getByRole("button",{name:"搜尋單字",exact:true}).click();
+  const input=page.getByRole("textbox",{name:"搜尋英文單字或中文解釋"});
+  await input.fill("anchorword");const before=(await input.boundingBox())!;
+  await page.getByRole("button",{name:"搜尋",exact:true}).click();await expect(page.getByRole("status")).toContainText("正在查詢");
+  const loading=(await input.boundingBox())!;expect(loading.y).toBeCloseTo(before.y,0);expect(loading.height).toBeCloseTo(before.height,0);
+  complete();await expect(page.locator(".lookup-result")).toBeVisible();
+  expect((await input.boundingBox())!.y).toBeCloseTo(before.y,0);
+  await page.locator(".lookup-body").evaluate(element=>{element.scrollTop=element.scrollHeight;});
+  expect((await input.boundingBox())!.y).toBeCloseTo(before.y,0);
+  await page.setViewportSize({width:390,height:360});
+  expect((await input.boundingBox())!.y).toBeCloseTo(before.y,0);
+  const header=(await page.locator(".lookup-screen>header").boundingBox())!;expect(header.y).toBe(0);expect(header.height).toBe(64);
+  await page.setViewportSize({width:1280,height:800});expect((await page.locator(".lookup-screen>header").boundingBox())!.y).toBe(0);
+});
+
 test("tap performs 3D flip; control tap does not flip; folder follows pointer and persists multi-row reorder", async ({ page }, info) => {
   await page.goto("/"); await page.getByRole("navigation").getByRole("button", { name:"學習", exact:true }).click();
   await page.getByRole("article", { name:"第一課", exact:true }).locator(".collection-main").click(); await page.getByRole("button", { name:"依照順序", exact:true }).click();
