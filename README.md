@@ -1,6 +1,8 @@
 # Vocab PWA
 
-Vocab for PWA：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android **3.1.1**。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
+Vocab for PWA **3.1.2**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
+
+此版加入約 76 萬筆 ECDICT 英漢詞條、自動查詢優先使用 ECDICT，以及各裝置的匯入方法／安裝連結。ECDICT 保留原始中文釋義（部分為簡體），缺少例句不會偽造；詞庫採按需下載及離線快取，授權與資料來源見 [ECDICT.md](ECDICT.md)。第三方匯入工具需要使用者另外安裝；iOS 專用 Vocab Userscripts 腳本尚未提供。
 
 **尚未完整 1:1 還原 Android**。已移植亮／暗主題、SRS 四級排程、撤銷、日期與連續天數、單字庫、多卡編輯、3D 翻卡、測驗、四種 AI 供應商、Google／劍橋查詢、八個設定入口、掃描及部分匯入流程。文法、文章、作文與部分原生互動仍未完成。第三方辭典可能拒絕伺服器查詢；不會將其他來源冒稱為劍橋結果。
 
