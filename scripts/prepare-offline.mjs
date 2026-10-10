@@ -16,6 +16,7 @@ for (const file of files) { digest.update(relative(root, file)); digest.update(a
 const source = await readFile(join(root, "sw.js"), "utf8");
 digest.update(source);
 digest.update(await readFile(join(root, "manifest.webmanifest")));
+digest.update(await readFile(join(root, "ecdict/manifest.json")));
 const build = digest.digest("hex").slice(0, 16);
 const urls = files.map(file => `/${relative(root, file).replaceAll("\\", "/")}`);
 await writeFile(join(root, "offline-assets.json"), JSON.stringify({ build, urls }));

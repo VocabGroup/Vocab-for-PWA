@@ -5,7 +5,7 @@ const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 function isAppAsset(url) {
   return url.origin === self.location.origin && !url.search && !url.pathname.startsWith("/api/") &&
-    /\.(?:js|css|woff2?|ttf|otf|png|svg|webmanifest)$/.test(url.pathname) && url.pathname !== "/sw.js";
+    (/\.(?:js|css|woff2?|ttf|otf|png|svg|webmanifest)$/.test(url.pathname) || /^\/ecdict\/[a-f0-9]{2}\.json$/.test(url.pathname)) && url.pathname !== "/sw.js";
 }
 
 self.addEventListener("install", event => {
@@ -53,7 +53,12 @@ self.addEventListener("fetch", event => {
     const cache = await caches.open(CACHE);
     // Keep HTML and chunks on one build until the user accepts an update.
     const cached = await cache.match(navigation ? "/" : request);
-    return cached || fetch(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    if (response.ok && /^\/ecdict\/[a-f0-9]{2}\.json$/.test(url.pathname)) {
+      try { await cache.put(request, response.clone()); } catch { /* Storage full: keep the live lookup usable. */ }
+    }
+    return response;
   })());
 });
 

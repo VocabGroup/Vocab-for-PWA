@@ -18,6 +18,8 @@ import { FlipCard } from "./FlipCard";
 import { WordLookupScreen } from "./WordLookupScreen";
 import { DocumentScanner } from "./DocumentScanner";
 import { BrowserExperience } from "./BrowserExperience";
+import { ImportDeviceHelp } from "./ImportDeviceHelp";
+import { parseCardJson } from "./import-json";
 import { commitCardEdits, type EditorRow } from "./card-editing";
 import {
   MdAdd, MdArrowBack, MdAutoAwesome, MdCameraAlt, MdClose, MdExtension,
@@ -620,7 +622,7 @@ async function fetchWordDetails(state: VocabState, word: string, original?: Part
 function parseImportedText(value: string): Partial<CardDraft>[] {
   const trimmed = value.trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    try { const parsed = JSON.parse(trimmed) as Partial<CardDraft>[] | { cards?: Partial<CardDraft>[] }; const items = Array.isArray(parsed) ? parsed : parsed.cards ?? []; return items.filter(card => card.word?.trim() && card.definition?.trim()); } catch { /* fall through to delimited text */ }
+    try { return parseCardJson(JSON.parse(trimmed)); } catch { /* fall through to delimited text */ }
   }
   return value.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => { const [word, definition, exampleSentence = "", exampleTranslation = ""] = line.split(/[\t,，]/); return { word: word?.trim() || "", definition: definition?.trim() || "", exampleSentence: exampleSentence.trim(), exampleTranslation: exampleTranslation.trim() }; }).filter(card => card.word && card.definition);
 }
@@ -659,7 +661,8 @@ function ImportSheet({ state, onClose, onImport }: { state: VocabState; onClose:
   return <SheetFrame title="匯入線上單字集" subtitle="分享網址、平台搜尋、貼上文字與檔案" onClose={onClose} wide>
     {state.decks.length === 0 ? <Empty title="請先建立資料夾" text="匯入的單字需要一個儲存位置。" /> : <div className="form"><DeckPicker state={state} value={deckId} onChange={setDeckId} />
       <div className="chips import-mode-chips">{([['url','分享網址'],['search','搜尋平台'],['paste','貼上文字'],['file','選擇檔案']] as const).map(([value,label]) => <button key={value} className={importMode === value ? "selected" : ""} onClick={() => setImportMode(value)}>{label}</button>)}</div>
-      {importMode === "url" && <div className="import-panel"><label><span>貼上分享網址</span><input inputMode="url" value={shareUrl} onChange={event => setShareUrl(event.target.value)} placeholder="https://…" /></label><button className="primary wide" disabled={busy || !shareUrl.trim()} onClick={readSharedUrl}><MdImportExport size={20} />辨識公開內容</button><p className="hint">可直接解析 Quizlet、Brainscape、Knowt、Cram 的公開分享頁；網站若要求登入或人機驗證會如實顯示失敗。</p></div>}
+      {(importMode === "url" || importMode === "search") && <ImportDeviceHelp onPaste={() => setImportMode("paste")} onFile={() => setImportMode("file")} />}
+      {importMode === "url" && <div className="import-panel"><label><span>貼上分享網址</span><input inputMode="url" value={shareUrl} onChange={event => setShareUrl(event.target.value)} placeholder="https://…" /></label><button className="primary wide" disabled={busy || !shareUrl.trim()} onClick={readSharedUrl}><MdImportExport size={20} />辨識公開內容</button><p className="hint">可嘗試讀取 Quizlet、Brainscape、Knowt、Cram 的公開分享頁；不保證網站允許伺服器讀取。若出現拒絕存取、登入或人機驗證，請查看上方裝置使用方法或改用文字／檔案匯入。</p></div>}
       {importMode === "search" && <div className="import-panel"><label><span>搜尋平台</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="例如：TOEIC 600、Oxford 3000" /></label><div className="source-search-grid">{sources.map(([name,url]) => <button className="secondary" key={name} disabled={!search.trim()} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>{name}</button>)}</div><p className="hint">找到公開單字集後，複製分享網址回到「分享網址」解析。未提供公開資料的平台請下載 CSV、文字或 Anki 檔案後匯入。</p></div>}
       {importMode === "paste" && <div className="import-panel"><label><span>每行：英文［Tab 或逗號］繁體中文</span><textarea className="import-text" value={text} onChange={event => { setText(event.target.value); setCandidates([]); }} /></label><button className="secondary wide" disabled={!text.trim() || busy} onClick={parseText}>產生文字預覽</button></div>}
       {importMode === "file" && <div className="import-panel"><p>支援 CSV、TSV、TXT 與 JSON 匯出檔案。</p><button className="primary wide" onClick={() => fileRef.current?.click()}><MdAttachFile size={20} />選擇匯出檔案</button></div>}

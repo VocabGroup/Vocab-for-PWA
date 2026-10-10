@@ -36,3 +36,21 @@ test("activation keeps caches belonging to other apps", async () => {
   await work;
   assert.deepEqual(removed.sort(), ["vocab-pwa-old", "vocab-shell-v1"]);
 });
+
+test("ECDICT shards cache for offline reuse and full storage does not block live lookup", async () => {
+  for (const storageFull of [false, true]) {
+    const handlers = new Map(), saved = new Map(); let networkCalls = 0;
+    vm.runInNewContext(source, {
+      URL, self: {location:{origin:"https://vocab.example"},addEventListener:(type,handler)=>handlers.set(type,handler)},
+      caches:{open:async()=>({match:async request=>saved.get(request.url)?.clone(),put:async(request,response)=>{if(storageFull)throw new Error("quota");saved.set(request.url,response);}})},
+      fetch:async()=>{networkCalls++;return Response.json({apple:["apple","","","蘋果"]});},
+    });
+    let work;
+    const event = {request:new Request("https://vocab.example/ecdict/00.json"),respondWith:promise=>{work=promise;}};
+    handlers.get("fetch")(event);
+    assert.ok((await (await work).json()).apple);
+    handlers.get("fetch")(event);
+    assert.ok((await (await work).json()).apple);
+    assert.equal(networkCalls,storageFull ? 2 : 1);
+  }
+});

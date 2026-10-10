@@ -32,6 +32,7 @@ test("same-origin manifest and transparent nav; independent lookup, history and 
   await expect(page.getByRole("heading", { name:"搜尋紀錄" })).toBeVisible();
   await page.getByRole("textbox", { name:"搜尋英文單字或中文解釋" }).fill("持續"); await page.getByRole("button", { name:"搜尋", exact:true }).click();
   await expect(page.getByRole("heading", { name:"我的單字庫" })).toBeVisible(); await expect(page.locator(".lookup-local")).toContainText("persist");
+  await page.getByLabel("查詢來源", {exact:true}).selectOption("FREE");
   await page.getByRole("textbox", { name:"搜尋英文單字或中文解釋" }).fill("resilient"); await page.getByRole("button", { name:"搜尋", exact:true }).click();
   await expect(page.locator(".lookup-result")).toContainText("Able to recover quickly.");
   await page.screenshot({ path:info.outputPath("search.png") });
@@ -49,6 +50,7 @@ test("lookup input stays at the top through loading, long results, scrolling and
   const pending=new Promise<void>(resolve=>{complete=resolve;});
   await page.route("https://translate.googleapis.com/**",async route=>{await pending;await route.fulfill({json:{sentences:[{trans:"長解釋。".repeat(300),orig:"anchorword"}]}});});
   await page.goto("/");await page.getByRole("button",{name:"搜尋單字",exact:true}).click();
+  await page.getByLabel("查詢來源", {exact:true}).selectOption("GOOGLE");
   const input=page.getByRole("textbox",{name:"搜尋英文單字或中文解釋"});
   await input.fill("anchorword");const before=(await input.boundingBox())!;
   await page.getByRole("button",{name:"搜尋",exact:true}).click();await expect(page.getByRole("status")).toContainText("正在查詢");

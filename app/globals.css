@@ -351,6 +351,14 @@ h1,h2,h3,p { margin-top: 0; }
 .import-source-grid button { min-height:74px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px; }
 .import-mode-chips { margin:0 -20px; padding-inline:20px; }
 .import-panel { display:grid; gap:13px; padding:14px; border-radius:18px; background:var(--surface); border:1px solid var(--border); }
+.import-device-help { padding:14px; border:1px solid var(--border); border-radius:18px; background:var(--surface-2); min-width:0; }
+.import-device-help h3 { margin:0 0 8px; font-size:.95rem; }
+.import-device-help p,.import-device-help li { font-size:.8rem; line-height:1.65; color:var(--muted); overflow-wrap:anywhere; }
+.import-device-help p { margin:0 0 12px; }
+.import-device-help ol { margin:14px 0; padding-left:22px; }
+.import-device-help li+li { margin-top:9px; }
+.import-help-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.import-help-actions a { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; text-align:center; overflow-wrap:anywhere; }
 .import-panel>.primary { display:flex; align-items:center; justify-content:center; gap:7px; }
 .source-search-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .scan-source-list { display:grid; gap:9px; }

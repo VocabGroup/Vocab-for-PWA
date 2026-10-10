@@ -17,9 +17,12 @@ Public-deck imports only allow listed HTTPS domains, validate every redirect, re
 
 CSP permits inline framework hydration/styles and HTTPS connections to user-selected AI providers; it is not a strict nonce-based CSP. Do not render untrusted HTML. Production server hardening does not replace browser/OS security or an independent penetration test.
 
-## Dependency review — 2026-10-08
+## Dependency review — 2026-10-10
 
 After updating the framework, React server components, Vite and Cloudflare tooling and pinning patched Sharp/fflate versions, `npm audit --omit=dev` reports zero known vulnerabilities. This is a package-advisory check, not a guarantee of zero security risk. Some framework code is bundled from development dependencies; this command alone is not a complete audit of the deployed bundle.
+
+Next.js is pinned to 16.4.0 after the October advisory refresh flagged the previous
+16.3.6 installation. Re-run both production and full dependency audits before deployment.
 
 The full audit still reports eight high-severity build/lint dependency entries rooted in `braces` CVE-2026-93687. The upstream advisory has no patched release: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm . These warnings remain visible because npm scans package versions, not our local mitigation; this is not an upstream-certified fix.
 

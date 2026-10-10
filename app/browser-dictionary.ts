@@ -1,4 +1,5 @@
 import { lookupDictionary, type LookupEntry, type LookupSource } from "./dictionary-lookup";
+import { lookupEcdict } from "./ecdict";
 
 async function serverLookup(query: string, source: LookupSource, signal?: AbortSignal): Promise<LookupEntry> {
   const response=await fetch(`/api/dictionary?source=${encodeURIComponent(source)}&q=${encodeURIComponent(query)}`,{signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(8_000)]) : AbortSignal.timeout(8_000),cache:"no-store"});
@@ -13,7 +14,12 @@ export async function lookupBrowserDictionary(query: string, source: string, sig
   signal?.throwIfAborted();
   query=query.trim();
   if(!query || query.length>80 || !/^[a-zA-Z\u3400-\u9fff\s'’-]+$/.test(query))throw new Error("請輸入 80 字內的英文單字、短語或中文解釋");
-  if(!["AUTO","GOOGLE","CAMBRIDGE","FREE"].includes(source))throw new Error("此來源尚未支援，請選擇 Google、劍橋或 Free Dictionary");
+  if(source === "ECDICT") return lookupEcdict(query, signal);
+  if(!["AUTO","GOOGLE","CAMBRIDGE","FREE"].includes(source))throw new Error("此來源尚未支援，請選擇 ECDICT、Google、劍橋或 Free Dictionary");
+  if(source === "AUTO" && !/[\u3400-\u9fff]/.test(query)) {
+    try { return await lookupEcdict(query, signal); }
+    catch(error) { if(signal?.aborted) throw error; }
+  }
   if(source==="CAMBRIDGE")return serverLookup(query,"CAMBRIDGE",signal);
   const providers: LookupSource[]=source==="AUTO" ? /[\u3400-\u9fff]/.test(query) ? ["GOOGLE"] : ["GOOGLE","FREE","CAMBRIDGE"] : [source as LookupSource];
   const failures: string[]=[];

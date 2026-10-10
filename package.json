@@ -18,13 +18,13 @@
     "build:pages": "npm run build && node scripts/prepare-pages.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json --local",
     "test": "npm run test:core && npm run typecheck && npm run build",
-    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs",
+    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs tests/import-json.test.mjs tests/ecdict.test.mjs",
     "test:browser": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
-    "next": "16.3.6",
+    "next": "16.4.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-icons": "^5.5.0",

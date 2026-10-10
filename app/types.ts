@@ -80,7 +80,7 @@ export type AppSettings = {
   aiProvider: "gemini" | "openai" | "openrouter" | "anthropic";
   aiProfiles?: { id: string; provider: AppSettings["aiProvider"]; model: string; key: string }[];
   aiChatStyle?: "normal" | "relaxed" | "strict";
-  dictionarySource?: "AUTO" | "GOOGLE" | "CAMBRIDGE" | "WIKTIONARY" | "FREE";
+  dictionarySource?: "AUTO" | "ECDICT" | "GOOGLE" | "CAMBRIDGE" | "WIKTIONARY" | "FREE";
   reminderTimes?: string[];
   ttsFrontReadWord?: boolean;
   ttsFrontSpellWord?: boolean;
