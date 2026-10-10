@@ -1,4 +1,5 @@
 import type { LookupEntry } from "./dictionary-lookup";
+export const ECDICT_DATA_VERSION = "zh-TW-v1";
 
 export function ecdictKey(query: string): string {
   const key = query.trim().toLowerCase().replaceAll("’", "'").replaceAll("‘", "'");
@@ -14,13 +15,13 @@ export function ecdictShard(key: string): string {
 
 export async function lookupEcdict(query: string, signal?: AbortSignal): Promise<LookupEntry> {
   const key = ecdictKey(query);
-  const response = await fetch(`/ecdict/${ecdictShard(key)}.json`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8_000)]) : AbortSignal.timeout(8_000) });
+  const response = await fetch(`/ecdict/${ecdictShard(key)}.json?v=${ECDICT_DATA_VERSION}`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8_000)]) : AbortSignal.timeout(8_000) });
   if (!response.ok) throw new Error("ECDICT 資料尚未下載，請連線後重試");
   const data: unknown = await response.json();
   const row = data && typeof data === "object" && Object.hasOwn(data, key) ? (data as Record<string, unknown>)[key] : undefined;
   if (!Array.isArray(row) || row.length !== 4 || !row.every(item => typeof item === "string")) throw new Error("ECDICT 查無此單字；可改用其他來源");
   const [word, phonetic, partOfSpeech, definition] = row as string[];
   return { word, phonetic: phonetic ? `/${phonetic}/` : "", partOfSpeech, definition,
-    exampleSentence: "", exampleTranslation: "", notes: "ECDICT（MIT）；保留原始中文釋義，部分為簡體；此來源不提供例句。",
+    exampleSentence: "", exampleTranslation: "", notes: "ECDICT（MIT）；中文釋義已轉為台灣繁體；此來源不提供例句。",
     source: "ECDICT 英漢字典", sourceUrl: "https://github.com/skywind3000/ECDICT" };
 }

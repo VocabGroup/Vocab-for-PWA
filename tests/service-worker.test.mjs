@@ -17,6 +17,9 @@ test("service worker never intercepts AI, API, auth, RSC or unknown resources", 
     ["https://vocab.example/api/data.js", {}], ["https://vocab.example/missing.json", {}],
     ["https://vocab.example/sw.js", {}], ["https://vocab.example/app.js?token=secret", {}],
     ["https://vocab.example/app.js", { headers: new Headers({ Authorization: "private" }) }],
+    ["https://vocab.example/ecdict/00.json?v=old", {}],
+    ["https://vocab.example/ecdict/00.json?v=zh-TW-v1&token=secret", {}],
+    ["https://vocab.example/ecdict/00.json", {}],
     ["https://vocab.example/", { headers: new Headers({ RSC: "1" }) }],
   ]) {
     let intercepted = false;
@@ -46,7 +49,7 @@ test("ECDICT shards cache for offline reuse and full storage does not block live
       fetch:async()=>{networkCalls++;return Response.json({apple:["apple","","","蘋果"]});},
     });
     let work;
-    const event = {request:new Request("https://vocab.example/ecdict/00.json"),respondWith:promise=>{work=promise;}};
+    const event = {request:new Request("https://vocab.example/ecdict/00.json?v=zh-TW-v1"),respondWith:promise=>{work=promise;}};
     handlers.get("fetch")(event);
     assert.ok((await (await work).json()).apple);
     handlers.get("fetch")(event);

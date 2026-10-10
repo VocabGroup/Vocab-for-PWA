@@ -3,9 +3,14 @@ const BUILD_ID = "development";
 const CACHE = `vocab-pwa-${BUILD_ID}`;
 const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
+function isEcdictAsset(url) {
+  return /^\/ecdict\/[a-f0-9]{2}\.json$/.test(url.pathname) &&
+    url.search === "?v=zh-TW-v1";
+}
+
 function isAppAsset(url) {
-  return url.origin === self.location.origin && !url.search && !url.pathname.startsWith("/api/") &&
-    (/\.(?:js|css|woff2?|ttf|otf|png|svg|webmanifest)$/.test(url.pathname) || /^\/ecdict\/[a-f0-9]{2}\.json$/.test(url.pathname)) && url.pathname !== "/sw.js";
+  return url.origin === self.location.origin && !url.pathname.startsWith("/api/") &&
+    ((!url.search && /\.(?:js|css|woff2?|ttf|otf|png|svg|webmanifest)$/.test(url.pathname)) || isEcdictAsset(url)) && url.pathname !== "/sw.js";
 }
 
 self.addEventListener("install", event => {
@@ -55,7 +60,7 @@ self.addEventListener("fetch", event => {
     const cached = await cache.match(navigation ? "/" : request);
     if (cached) return cached;
     const response = await fetch(request);
-    if (response.ok && /^\/ecdict\/[a-f0-9]{2}\.json$/.test(url.pathname)) {
+    if (response.ok && isEcdictAsset(url)) {
       try { await cache.put(request, response.clone()); } catch { /* Storage full: keep the live lookup usable. */ }
     }
     return response;
