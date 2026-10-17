@@ -31,6 +31,7 @@ export function PwaRegister() {
     const viewport = () => {
       const height = window.visualViewport?.height ?? window.innerHeight;
       document.documentElement.style.setProperty("--visible-height", `${height}px`);
+      document.documentElement.style.setProperty("--visible-top", `${window.visualViewport?.offsetTop ?? 0}px`);
       document.documentElement.dataset.keyboard = String(window.innerHeight - height > 150);
     };
     const openHelp = () => setHelpOpen(true);
@@ -44,7 +45,7 @@ export function PwaRegister() {
     window.addEventListener("vocab-install-help", openHelp);
     window.addEventListener("vocab-show-update", showUpdate);
     standalone.addEventListener("change", sync);
-    window.visualViewport?.addEventListener("resize", viewport); window.addEventListener("resize", viewport);
+    window.visualViewport?.addEventListener("resize", viewport); window.visualViewport?.addEventListener("scroll",viewport); window.addEventListener("resize", viewport);
 
     if ("serviceWorker" in navigator && window.isSecureContext && process.env.NODE_ENV === "production") {
       navigator.serviceWorker.addEventListener("controllerchange", controllerChanged);
@@ -70,7 +71,7 @@ export function PwaRegister() {
       window.removeEventListener("online", sync); window.removeEventListener("offline", sync);
       window.removeEventListener("vocab-install-help", openHelp); standalone.removeEventListener("change", sync);
       window.removeEventListener("vocab-show-update", showUpdate);
-      window.visualViewport?.removeEventListener("resize", viewport); window.removeEventListener("resize", viewport);
+      window.visualViewport?.removeEventListener("resize", viewport); window.visualViewport?.removeEventListener("scroll",viewport); window.removeEventListener("resize", viewport);
       navigator.serviceWorker?.removeEventListener("controllerchange", controllerChanged);
       navigator.serviceWorker?.removeEventListener("message", messages);
     };

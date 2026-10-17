@@ -27,7 +27,7 @@ test("live camera continuously redetects moving paper; shutter uses current fram
   await page.goto("/");await page.getByRole("button",{name:"掃描匯入",exact:true}).click();await page.getByRole("button",{name:"掃描",exact:true}).click();
   await expect(page.getByRole("button",{name:"快門",exact:true})).toBeEnabled();
   const outline=page.locator(".live-camera-outline");await expect(outline).toHaveAttribute("data-detected","true");
-  const left=()=>outline.evaluate((element:HTMLCanvasElement)=>{const ctx=element.getContext("2d")!,data=ctx.getImageData(0,0,element.width,element.height).data;let min=element.width;for(let i=0;i<data.length;i+=4)if(data[i+1]>180 && data[i]<150 && data[i+3]>200)min=Math.min(min,(i/4)%element.width);return min;});
+  const left=()=>outline.evaluate((element:HTMLCanvasElement)=>{const ctx=element.getContext("2d")!,data=ctx.getImageData(0,0,element.width,element.height).data;let min=element.width;for(let i=0;i<data.length;i+=4)if(data[i+2]>180 && data[i]<150 && data[i+3]>200)min=Math.min(min,(i/4)%element.width);return min;});
   const original=await left();await page.evaluate(()=>{(window as Window & {movePaper?:number}).movePaper=170;});
   await expect.poll(left).toBeGreaterThan(original+100);
   await page.screenshot({path:info.outputPath("live-camera.png")});
@@ -35,9 +35,9 @@ test("live camera continuously redetects moving paper; shutter uses current fram
   await expect(page.locator(".scanic-handle")).toHaveCount(4);await expect(page.getByRole("button",{name:"裁切並保留"})).toBeEnabled();
   expect(await page.evaluate(()=>(window as unknown as {cameraTracks:MediaStreamTrack[]}).cameraTracks.every(track=>track.readyState==="ended"))).toBe(true);
   await expect(page.locator(".live-document-camera")).toHaveCount(0);
-  await page.getByRole("button",{name:"裁切並保留"}).click();await expect(page.getByRole("img",{name:"掃描第 1 頁"})).toBeVisible();
-  await page.getByRole("button",{name:"拍下一頁",exact:true}).click();await expect(page.getByRole("button",{name:"快門",exact:true})).toBeEnabled();
-  await page.getByRole("button",{name:"關閉即時鏡頭",exact:true}).click();
+  await page.getByRole("button",{name:"裁切並保留"}).click();await expect(page.getByRole("img",{name:"掃描第 1 頁",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"新增掃描頁面",exact:true}).click();await expect(page.getByRole("button",{name:"快門",exact:true})).toBeEnabled();
+  page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"返回掃描匯入",exact:true}).click();
   expect(await page.evaluate(()=>(window as unknown as {cameraTracks:MediaStreamTrack[]}).cameraTracks.every(track=>track.readyState==="ended"))).toBe(true);
 });
 
@@ -59,10 +59,10 @@ test("real Scanic detects, adjusts and rectifies locally, then recognizes pages 
   });
   await page.goto("/");await page.getByRole("button",{name:"掃描匯入",exact:true}).click();
   await page.getByTestId("document-scan-input").setInputFiles(paper);
-  await expect(page.getByRole("heading",{name:"文件掃描",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"編輯掃描頁面",exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"裁切並保留",exact:true})).toBeEnabled();
   await expect(page.locator(".scanic-handle")).toHaveCount(4);
-  await expect(page.getByRole("status")).toContainText("已偵測邊框");
+  await expect(page.locator(".document-scan-overlay [role=status]")).toContainText("已偵測邊框");
   const corner=page.locator(".scanic-handle").first(),box=(await corner.boundingBox())!;
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+15,box.y+box.height/2+10,{steps:4});await page.mouse.up();
   await page.screenshot({path:info.outputPath("document-corners.png")});
@@ -70,37 +70,39 @@ test("real Scanic detects, adjusts and rectifies locally, then recognizes pages 
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect(calls).toHaveLength(0);
   await page.getByRole("button",{name:"裁切並保留",exact:true}).click();
-  const preview=page.getByRole("img",{name:"掃描第 1 頁"});await expect(preview).toBeVisible();
+  const preview=page.getByRole("img",{name:"掃描第 1 頁",exact:true});await expect(preview).toBeVisible();
   await expect.poll(()=>preview.evaluate((element:HTMLImageElement)=>element.naturalWidth)).toBeGreaterThan(100);
   const dimensions=await preview.evaluate((element:HTMLImageElement)=>({width:element.naturalWidth,height:element.naturalHeight}));
   expect(dimensions.width).toBeLessThan(800);expect(dimensions.height).toBeLessThan(1000);
   await page.getByTestId("scan-next-photo").setInputFiles(paper);
   await expect(page.getByRole("button",{name:"裁切並保留",exact:true})).toBeEnabled();await page.getByRole("button",{name:"裁切並保留",exact:true}).click();
-  await expect(page.getByRole("img",{name:"掃描第 2 頁"})).toBeVisible();
+  await expect(page.getByRole("img",{name:"掃描第 2 頁",exact:true})).toBeVisible();
   await page.screenshot({path:info.outputPath("document-pages.png")});
   const footer=(await page.locator(".document-scan-overlay>footer").boundingBox())!;
   expect(footer.y+footer.height).toBeLessThanOrEqual(page.viewportSize()!.height+1);
   expect(calls).toHaveLength(0);
-  await page.getByRole("button",{name:"送交 AI 辨識（2 頁）",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"文件掃描",exact:true})).toHaveCount(0);
-  await expect(page.locator(".import-preview")).toContainText("persist");await expect(page.locator(".import-preview")).toContainText("resilient");
+  await page.getByRole("button",{name:"繼續（2 頁）",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"編輯掃描頁面",exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"開始辨識／只重試未完成圖片"}).click();
+  await expect(page.getByRole("textbox",{name:"第 1 個單字",exact:true})).toHaveValue("persist");await expect(page.getByRole("textbox",{name:"第 2 個單字",exact:true})).toHaveValue("resilient");
   expect(calls).toHaveLength(2);expect(calls.every(call=>call.mime==="image/jpeg" && call.data.startsWith("/9j/"))).toBe(true);
-  await page.getByRole("button",{name:"加入資料夾最後方"}).click();
+  await page.getByRole("button",{name:"確認加入所選單字"}).click();
   await expect(page.locator(".sheet-backdrop")).toHaveCount(0);
 });
 
 test("AI failure retains scans for retry and does not import incomplete results",async({page})=>{
   let fail=true;
-  await page.route("https://generativelanguage.googleapis.com/**",route=>fail ? route.fulfill({status:500,json:{error:{message:"test failure"}}}) : route.fulfill({json:{candidates:[{content:{parts:[{text:'{"cards":[{"word":"persist","definition":"堅持"}]}'}]}}]}}));
+  await page.route("https://generativelanguage.googleapis.com/**",route=>fail ? route.fulfill({status:400,json:{error:{message:"test failure"}}}) : route.fulfill({json:{candidates:[{content:{parts:[{text:'{"cards":[{"word":"persist","definition":"堅持"}]}'}]}}]}}));
   await page.goto("/");await page.getByRole("button",{name:"掃描匯入",exact:true}).click();
   await page.getByTestId("document-scan-input").setInputFiles(paper);
   await expect(page.getByRole("button",{name:"裁切並保留"})).toBeEnabled();await page.getByRole("button",{name:"裁切並保留"}).click();
-  await page.getByRole("button",{name:"送交 AI 辨識（1 頁）"}).click();
-  await expect(page.getByRole("status")).toContainText("裁切頁面已保留");
-  await expect(page.getByRole("img",{name:"掃描第 1 頁"})).toBeVisible();
+  await page.getByRole("button",{name:"繼續（1 頁）"}).click();
+  await page.getByRole("button",{name:"開始辨識／只重試未完成圖片"}).click();
+  await expect(page.locator(".image-jobs")).toContainText("失敗");
+  await expect(page.getByRole("img",{name:"第 1 張"})).toBeVisible();
   await expect(page.locator(".import-preview")).toHaveCount(0);
-  fail=false;await page.getByRole("button",{name:"送交 AI 辨識（1 頁）"}).click();
-  await expect(page.locator(".import-preview")).toContainText("persist");
+  fail=false;await page.getByRole("button",{name:"開始辨識／只重試未完成圖片"}).click();
+  await expect(page.getByRole("textbox",{name:"第 1 個單字",exact:true})).toHaveValue("persist");
 });
 
 test("manual corners work without AI credentials; invalid image recovers and pages can be removed",async({page,context})=>{
@@ -108,12 +110,12 @@ test("manual corners work without AI credentials; invalid image recovers and pag
   await page.goto("/");await page.getByRole("button",{name:"掃描匯入",exact:true}).click();
   await expect(page.getByRole("button",{name:"掃描",exact:true})).toBeEnabled();
   await page.getByTestId("document-scan-input").setInputFiles({name:"bad.jpg",mimeType:"image/jpeg",buffer:Buffer.from("not-an-image")});
-  await expect(page.getByRole("status")).toContainText("無法開啟圖片");
+  await expect(page.locator(".document-scan-overlay [role=status]")).toContainText("無法開啟圖片");
   await page.getByRole("button",{name:"取消這頁"}).click();
   await page.getByTestId("scan-next-photo").setInputFiles({name:"blank.svg",mimeType:"image/svg+xml",buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/></svg>')});
-  await expect(page.getByRole("status")).toContainText("請手動拖曳四角");
+  await expect(page.locator(".document-scan-overlay [role=status]")).toContainText("請手動拖曳四角");
   await page.getByRole("button",{name:"裁切並保留"}).click();
-  await expect(page.getByRole("button",{name:"送交 AI 辨識（1 頁）"})).toBeDisabled();
-  await page.getByRole("button",{name:"刪除第 1 頁"}).click();await expect(page.locator(".document-pages img")).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"繼續（1 頁）"})).toBeEnabled();
+  await page.getByRole("button",{name:"刪除目前頁面"}).click();await expect(page.locator(".scan-thumbnail-strip img")).toHaveCount(0);
   await page.getByRole("button",{name:"返回掃描匯入"}).click();await expect(page.getByRole("heading",{name:"文件掃描"})).toHaveCount(0);
 });

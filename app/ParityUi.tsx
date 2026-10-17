@@ -8,7 +8,8 @@ export function ListRow({ title, subtitle, icon: Glyph, onClick }: { title: stri
   return <button className="modern-list-row" onClick={onClick}><Glyph size={24} aria-hidden="true" /><span><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span><MdChevronRight size={24} aria-hidden="true" /></button>;
 }
 
-export function CollectionRow({ title, subtitle, count, due, progress, mode = "manage", onManage, onLearn, onQuiz, onEdit, onDelete, onMove }: {
+export function CollectionRow({ title, subtitle, count, due, progress, mode = "manage", onManage, onLearn, onQuiz, onEdit, onDelete, onMove, onShare }: {
+  onShare?:()=>void;
   title: string; subtitle: string; count: number; due?: number; progress?: number; mode?: "manage" | "learn" | "quiz";
   onManage: () => void; onLearn: () => void; onQuiz: () => void; onEdit?: () => void; onDelete?: () => void;
   onMove?: (offset: number) => void;
@@ -37,7 +38,7 @@ export function CollectionRow({ title, subtitle, count, due, progress, mode = "m
   }, [open]);
   const primary = mode === "learn" ? onLearn : mode === "quiz" ? onQuiz : onManage;
   const actions = [{ label: "管理", action: onManage }, { label: "學習", action: onLearn, disabled: count === 0 }, { label: "測驗", action: onQuiz, disabled: count === 0 },
-    ...(onEdit ? [{ label: "編輯", action: onEdit }] : []), ...(onDelete ? [{ label: "刪除", action: onDelete }] : [])];
+    ...(onEdit ? [{ label: "編輯", action: onEdit }] : []), ...(onShare ? [{label:"分享資料夾",action:onShare}]:[]), ...(onDelete ? [{ label: "刪除", action: onDelete }] : [])];
   return <article className={`modern-collection-row ${dragY !== null ? "collection-lifted" : ""}`} style={dragY !== null ? { transform: `translateY(${dragY}px) scale(1.025)`, zIndex: 40 } : undefined} ref={root} aria-label={title}>
     <button className="collection-main" onClick={primary} disabled={mode !== "manage" && count === 0}>
       <span className="collection-icon"><MdFolder size={20} aria-hidden="true" /></span>

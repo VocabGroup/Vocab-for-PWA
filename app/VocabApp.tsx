@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Selected photos are local blob URLs, not server images. */
 
 import { ChangeEvent, FormEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import type { AppSettings, Card, Deck, VocabState } from "./types";
@@ -11,7 +12,10 @@ import { ManageCardsSheet } from "./ManageCardsSheet";
 import { CollectionRow, ListRow } from "./ParityUi";
 import { OnboardingScreen } from "./OnboardingScreen";
 import { SettingsScreen } from "./SettingsScreen";
-import { requestAi } from "./ai-client";
+import { requestAi, partialReply } from "./ai-client";
+import {FolderSharing} from "./FolderSharing";
+import {prepareAiFile,scanInstructions,type ScanMode} from "./image-preparation";
+import {generateCoveredArticle,missingArticleWords,articleHighlights,type ArticleDraft} from "./article-coverage";
 import { mergeCardCompletion } from "./card-completion";
 import { cardSpeechParts } from "./card-speech";
 import { FlipCard } from "./FlipCard";
@@ -61,6 +65,7 @@ export function VocabApp() {
   const [toast, setToast] = useState("");
   const [now] = useState(() => Date.now());
   const [storageError, setStorageError] = useState("");
+  const [lastImport,setLastImport]=useState<{cards:string[];decks:string[]}|null>(null);
   const backend = useRef<"indexeddb" | "localstorage">("indexeddb");
 
   useEffect(() => {
@@ -81,7 +86,7 @@ export function VocabApp() {
     return () => { cancelled = true; };
   }, [state, ready]);
   useEffect(() => {
-    const closePage = () => setSheet(history.state?.vocabPage === "settings" ? "settings" : "none");
+    const closePage = () => {if(document.documentElement.dataset.aiBusy==="true"&&!confirm("AI 作業仍在進行，離開會取消，是否繼續？")){history.pushState({vocabPage:"lookup"},"");return;}setSheet(history.state?.vocabPage === "settings" ? "settings" : "none");};
     window.addEventListener("popstate", closePage);
     return () => window.removeEventListener("popstate", closePage);
   }, []);
@@ -189,13 +194,18 @@ export function VocabApp() {
     setSheet(destination);
   };
 
-  const finishImport = (cards: Partial<CardDraft>[], deckId: string) => {
+  const finishImport = (cards: Partial<CardDraft>[], deckId: string, newFolder=false) => {
+    const source=state.decks.find(d=>d.id===deckId);if(!source)return;
+    const importedDeckId=newFolder?makeId():deckId;
     const seen = new Set(state.cards.filter(card => card.deckId === deckId).map(card => normalize(card.word)));
+    if(newFolder)seen.clear();
     const accepted = cards.filter(draft => { const key = normalize(draft.word || ""); if (!key || seen.has(key)) return false; seen.add(key); return true; });
+    const ids=accepted.map(()=>makeId());
     setState(current => {
-      const startOrder = current.cards.filter(card => card.deckId === deckId).length;
-      return { ...current, cards: [...current.cards, ...accepted.map((draft, index) => ({ ...blankCard, ...draft, id: makeId(), deckId, order: startOrder + index, mastered: false, favorite: false, suspended: false, mistakeCount: 0, nextReviewAt: Date.now() }))] };
+      const startOrder = current.cards.filter(card => card.deckId === importedDeckId).length;
+      return { ...current,decks:newFolder?[...current.decks,{...source,id:importedDeckId,name:`${source.name}（辨識匯入 ${new Date().toLocaleTimeString()}）`,order:current.decks.length,createdAt:Date.now()}]:current.decks, cards: [...current.cards, ...accepted.map((draft, index) => ({ ...blankCard, ...draft, id: ids[index], deckId:importedDeckId, order: startOrder + index, mastered: false, favorite: false, suspended: false, mistakeCount: 0,intervalDays:0,easeFactor:2.5,repetitionCount:0,lastReviewedAt:undefined, nextReviewAt: Date.now() }))] };
     });
+    setLastImport({cards:ids,decks:newFolder?[importedDeckId]:[]});
     setToast(accepted.length ? `已依原始順序匯入 ${accepted.length} 張單字卡` : "沒有新增：資料夾內已有相同單字");
     setSheet("none");
   };
@@ -210,6 +220,7 @@ export function VocabApp() {
 
   return (
     <BrowserExperience settings={state.settings} updateSettings={updateSettings}><main className="app-shell">
+      {lastImport&&<div className="import-undo"><button className="secondary" onClick={()=>{if(state.cards.some(c=>lastImport.decks.includes(c.deckId)&&!lastImport.cards.includes(c.id))){setToast("匯入資料夾已有其他字卡，請先移出再撤回");return;}if(!confirm("撤回上次單字匯入？該批新字卡及後續修改會移除，原有字卡保留。"))return;setState(current=>({...current,cards:current.cards.filter(c=>!lastImport.cards.includes(c.id)),decks:current.decks.filter(d=>!lastImport.decks.includes(d.id)),reviewLogs:current.reviewLogs?.filter(log=>!lastImport.cards.includes(log.cardId))}));setLastImport(null);}}>撤回上次單字匯入</button></div>}
       {storageError && <div className="storage-error" role="alert"><p>{storageError}</p><button className="secondary" onClick={() => downloadBackup(state)}>下載備份</button></div>}
       <div className="app-content" aria-hidden={sheet !== "none"} inert={sheet !== "none"}>
       <header className="topbar">
@@ -228,7 +239,7 @@ export function VocabApp() {
           onStudy={() => setSheet("study")} onQuiz={() => setSheet("quiz")}
           onAddFolder={() => setSheet("deck")} onOpen={id => { setLookupCard(null); setSelectedDeckId(id); setSheet("manage"); }}
         />}
-        {tab === "folders" && <FoldersView state={state} onAdd={() => setSheet("deck")}
+        {tab === "folders" && <FoldersView state={state} onStateChange={setState} onAdd={() => setSheet("deck")}
           onOpen={id => { setLookupCard(null); setSelectedDeckId(id); setSheet("manage"); }} onStudy={id => startForDeck(id, "study")}
           onQuiz={id => startForDeck(id, "quiz")} onAddCard={openCard}
           onUpdate={updated => setState(current => ({ ...current, decks: current.decks.map(deck => deck.id === updated.id ? updated : deck) }))}
@@ -383,17 +394,20 @@ function HomeView({ state, todayStudied, dueCount, onAddCard, onScan, onImport, 
   </>;
 }
 
-function FoldersView({ state, onAdd, onOpen, onStudy, onQuiz, onUpdate, onRenameCourse, onReorder, onDelete }: {
+function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onUpdate, onRenameCourse, onReorder, onDelete }: {
+  onStateChange:(change:(state:VocabState)=>VocabState)=>void;
   state: VocabState; onAdd: () => void; onOpen: (id: string) => void; onStudy: (id: string) => void; onQuiz: (id: string) => void;
   onAddCard: (id: string) => void; onUpdate: (deck: Deck) => void; onRenameCourse: (oldName: string, newName: string) => void; onReorder: (ids: string[]) => void; onDelete: (id: string) => void;
 }) {
   const [course, setCourse] = useState("全部");
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
+  const [adding,setAdding]=useState(false);
   const [renamingCourse, setRenamingCourse] = useState<string | null>(null); const [courseName, setCourseName] = useState("");
   const courses = ["全部", ...Array.from(new Set(state.decks.map(deck => deck.course)))];
   const decks = state.decks.filter(deck => course === "全部" || deck.course === course).sort((a, b) => a.order - b.order);
   const shiftDeck = (id: string, offset: number) => { const visibleIds = decks.map(deck => deck.id); const index = visibleIds.indexOf(id); const target = Math.max(0, Math.min(visibleIds.length - 1, index + offset)); if (index < 0 || target === index) return; visibleIds.splice(index, 1); visibleIds.splice(target, 0, id); const scope = new Set(visibleIds); let cursor = 0; const ids = [...state.decks].sort((a, b) => a.order - b.order).map(deck => scope.has(deck.id) ? visibleIds[cursor++] : deck.id); onReorder(ids); };
   return <>
+    <FolderSharing state={state} course={course} onChange={onStateChange}/>
     <div className="modern-filter"><p>選擇課程</p><div className="chips">{courses.map(value => <button key={value} className={course === value ? "selected" : ""} onClick={() => setCourse(value)}>{value === "全部" ? `全部資料夾 (${state.decks.length})` : `${value} (${state.decks.filter(deck => deck.course === value).length})`}</button>)}</div></div>
     {course !== "全部" && <button className="secondary wide rename-course-button" onClick={() => { setRenamingCourse(course); setCourseName(course); }}><MdEdit size={18} />重新命名課程「{course}」</button>}
     {decks.length === 0 ? <Empty title="還沒有資料夾" text="點右下角新增第一個資料夾。" /> :
@@ -402,10 +416,11 @@ function FoldersView({ state, onAdd, onOpen, onStudy, onQuiz, onUpdate, onRename
         const mastered = cards.filter(card => card.mastered).length;
         return <CollectionRow key={deck.id} title={deck.name} subtitle={deck.course} count={cards.length}
           due={cards.filter(card => card.nextReviewAt <= Date.now() && !card.mastered && !card.suspended).length} progress={cards.length ? mastered / cards.length : 0}
-          onManage={() => onOpen(deck.id)} onLearn={() => onStudy(deck.id)} onQuiz={() => onQuiz(deck.id)} onEdit={() => setEditingDeck(deck)}
+          onManage={() => onOpen(deck.id)} onLearn={() => onStudy(deck.id)} onQuiz={() => onQuiz(deck.id)} onEdit={() => setEditingDeck(deck)} onShare={()=>window.dispatchEvent(new CustomEvent("vocab-share-folder",{detail:deck.id}))}
           onDelete={() => { if (confirm(`刪除「${deck.name}」與裡面的字卡？`)) onDelete(deck.id); }} onMove={offset => shiftDeck(deck.id, offset)} />;
       })}</div>}
-    <button className="fab" onClick={onAdd} aria-label="新增資料夾"><Icon icon={MdAdd} /></button>
+    <button className="fab" onClick={()=>setAdding(!adding)} aria-label="新增資料夾"><Icon icon={MdAdd} /></button>
+    {adding&&<div className="folder-add-menu"><button className="secondary" onClick={()=>{setAdding(false);onAdd();}}>建立資料夾</button><button className="secondary" onClick={()=>{setAdding(false);window.dispatchEvent(new Event("vocab-import-folders"));}}>匯入分享檔案</button></div>}
     {editingDeck && <EditDeckDialog deck={editingDeck} courses={Array.from(new Set(state.decks.map(item => item.course)))} onClose={() => setEditingDeck(null)} onSave={deck => { onUpdate(deck); setEditingDeck(null); }} />}
     {renamingCourse && <div className="nested-dialog-backdrop"><section className="nested-dialog"><header><h3>重新命名課程</h3><button className="icon-button" aria-label="關閉" onClick={() => setRenamingCourse(null)}><MdClose size={22} /></button></header><div className="form"><label><span>課程名稱</span><input autoFocus value={courseName} onChange={event => setCourseName(event.target.value)} /></label><div className="dialog-form-actions"><button className="secondary" onClick={() => setRenamingCourse(null)}>取消</button><button className="primary" disabled={!courseName.trim() || courseName.trim() === renamingCourse || state.decks.some(deck => deck.course === courseName.trim())} onClick={() => { const next=courseName.trim(); onRenameCourse(renamingCourse,next); setCourse(next); setRenamingCourse(null); }}>儲存</button></div></div></section></div>}
   </>;
@@ -481,6 +496,16 @@ function CardSheet({ state, deck, cards, initialCardId, onCommit, onClose, onSav
   useEffect(() => { if (!editing) return; const timer = setTimeout(() => focused.current?.scrollIntoView({ block:"start", behavior:"instant" }), 100); return () => clearTimeout(timer); }, [editing, initialCardId]);
   const makeRow = (): DraftRow => ({ ...blankCard, rowId:makeId(), aiBusy:false });
   const [drafts, setDrafts] = useState<DraftRow[]>(editing ? existing.map(card => ({ ...card, cardId:card.id, rowId:card.id, aiBusy:false })) : [makeRow()]); const [aiStatus, setAiStatus] = useState("");
+  const draftKey=`vocab-editor-draft-v1-${deck?.id??"none"}-${editing?"edit":"add"}`;
+  const baseline=JSON.stringify(existing.map(({id,word,definition,phonetic,partOfSpeech,exampleSentence,exampleTranslation})=>({id,word,definition,phonetic,partOfSpeech,exampleSentence,exampleTranslation})));
+  const [recovery,setRecovery]=useState<{rows:DraftRow[];originalIds:string[];baseline:string}|null>(()=>{try{const raw=localStorage.getItem(draftKey);if(!raw)return null;const saved=JSON.parse(raw);return Array.isArray(saved.rows)&&Array.isArray(saved.originalIds)&&saved.rows.length<=10000?saved:null;}catch{return null;}});
+  const latestDraft=useRef({drafts,originalIds,baseline});
+  useEffect(()=>{latestDraft.current={drafts,originalIds,baseline};},[drafts,originalIds,baseline]);
+  useEffect(()=>{
+    if(recovery)return;
+    const save=()=>{const value=latestDraft.current;try{const projected=value.drafts.filter(row=>row.word.trim()||row.definition.trim()).map(row=>({id:row.cardId??row.rowId,word:row.word,definition:row.definition,phonetic:row.phonetic,partOfSpeech:row.partOfSpeech,exampleSentence:row.exampleSentence,exampleTranslation:row.exampleTranslation}));const pristine=editing&&JSON.stringify(projected)===value.baseline;if(!pristine&&value.drafts.some(row=>[row.word,row.definition,row.phonetic,row.partOfSpeech,row.exampleSentence,row.exampleTranslation,row.notes].some(v=>v?.trim())))localStorage.setItem(draftKey,JSON.stringify({rows:value.drafts.map(row=>({...row,aiBusy:false})),originalIds:value.originalIds,baseline:value.baseline}));else localStorage.removeItem(draftKey);}catch{setAiStatus("草稿儲存失敗，請先儲存單字或下載備份再離開");}};
+    const timer=setTimeout(save,350);window.addEventListener("pagehide",save);return()=>{clearTimeout(timer);window.removeEventListener("pagehide",save);save();};
+  },[drafts,originalIds,draftKey,recovery,editing]);
   const update = (rowId:string, key:keyof CardDraft, value:string) => setDrafts(current => current.map(row => row.rowId === rowId ? { ...row, [key]:value } : row));
   const insertAt = (index:number) => setDrafts(current => [...current.slice(0,index), makeRow(), ...current.slice(index)]);
   const removeRow = (rowId:string) => setDrafts(current => current.length === 1 ? [makeRow()] : current.filter(row => row.rowId !== rowId));
@@ -503,6 +528,7 @@ function CardSheet({ state, deck, cards, initialCardId, onCommit, onClose, onSav
   const anyBusy=drafts.some(row => row.aiBusy); const canSave=editing || drafts.some(row => row.word.trim() && row.definition.trim());
   return <SheetFrame className="add-card-sheet" title={editing ? "編輯單字卡" : "新增單字卡"} onClose={() => { if (!editing || commitEditing()) onClose(); }} wide action={<button className="topbar-ai-action" disabled={!drafts.some(row => row.word.trim()) || anyBusy} onClick={() => completeAi()}>{anyBusy ? <span className="spinner" /> : <MdAutoAwesome size={19} />}<span>AI 一鍵補齊</span></button>}>
     <form className="form card-form" onSubmit={submit}>
+      {recovery&&<div className="draft-recovery"><p>找到上次未完成的編輯草稿。{editing&&recovery.baseline!==baseline?"原資料已更新，請先複製草稿內容，避免覆蓋新內容。":"可恢復後繼續編輯。"}</p><button type="button" className="secondary" disabled={editing&&recovery.baseline!==baseline} onClick={()=>{setDrafts(recovery.rows.map(row=>({...row,aiBusy:false})));setOriginalIds(recovery.originalIds);setRecovery(null);}}>恢復草稿</button><button type="button" className="secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(recovery.rows,null,2));}}>複製草稿</button><button type="button" className="secondary" onClick={()=>{localStorage.removeItem(draftKey);setRecovery(null);}}>捨棄草稿</button></div>}
       <section className="save-location-card"><div><strong>儲存位置</strong><small>{deck ? `會加入「${deck.name}」最後方` : "請選擇資料夾"}</small></div><DeckPicker state={state} value={deck?.id ?? ""} onChange={id => { if (!editing || commitEditing()) onDeckChange(id); }} /></section>
       <button type="button" className="insert-card-divider" onClick={() => insertAt(0)}><MdAdd size={17} />新增到最前面</button>
       {drafts.map((draft,index) => <div className={`manual-card-group ${draft.cardId === initialCardId ? "editor-target" : ""}`} data-card-id={draft.cardId} ref={draft.cardId === initialCardId ? focused : undefined} key={draft.rowId}><article className="manual-card-editor"><div className="manual-card-head"><strong>單字卡 #{index+1}</strong><button type="button" className="icon-button card-ai-icon" aria-label="AI 補齊" disabled={!draft.word.trim() || draft.aiBusy} onClick={() => completeAi(draft.rowId)}>{draft.aiBusy ? <span className="spinner" /> : <MdAutoAwesome size={24} />}</button><button type="button" className="icon-button delete-draft-icon" aria-label="刪除這張輸入卡" onClick={() => draft.cardId ? setPendingDelete(draft.rowId) : removeRow(draft.rowId)}><MdDelete size={24} /></button></div><label><span>英文單字</span><input autoFocus={index===0 && !editing} value={draft.word} onChange={event => update(draft.rowId,"word",event.target.value)} autoCapitalize="none" /></label>
@@ -572,20 +598,39 @@ function StudySheet({ state, initialDeckId, onClose, onRate, onUndo, onToggleFav
 
 
 function AiSheet({ state, onClose, onSettings, onApply }: { state: VocabState; onClose: () => void; onSettings: () => void; onApply: (action: AiAction) => string }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState(""); const [busy, setBusy] = useState(false); const [scope, setScope] = useState("all"); const [pending, setPending] = useState<AiAction | null>(null); const [workingText, setWorkingText] = useState(""); const abortRef = useRef<AbortController | null>(null);
-  const messageList = useRef<HTMLDivElement>(null);
-  useEffect(() => { messageList.current?.scrollTo({ top: messageList.current.scrollHeight, behavior: "smooth" }); }, [messages, busy, pending]);
-  useEffect(() => () => abortRef.current?.abort(), []);
-  const send = async (suggestion?: string) => {
-    const text = (suggestion ?? input).trim(); if (!text || busy) return; if (!state.settings.aiApiKey && !state.settings.aiProfiles?.length) { onSettings(); return; }
-    const next = [...messages, { role: "user", text } as ChatMessage]; setMessages(next); setInput(""); setBusy(true); setPending(null); setWorkingText(/排序|整理/.test(text) ? "正在核對資料夾與目前順序…" : /新增|建立|移動|修改|補齊/.test(text) ? "正在確認可編輯範圍與變更內容…" : /測驗|題目|文章/.test(text) ? "正在依單字內容準備學習素材…" : "正在整理回答…"); abortRef.current = new AbortController();
-    try { const response = await askAi(state, next.slice(-10), scope, abortRef.current.signal); setMessages(current => [...current, { role: "assistant", text: response.reply }]); setPending(response.action ? { ...response.action, __scope: scope } : null); }
-    catch (error) { if ((error as Error).name !== "AbortError") setMessages(current => [...current, { role: "assistant", text: `無法完成：${(error as Error).message}` }]); }
-    finally { setBusy(false); abortRef.current = null; }
+  const [messages,setMessages]=useState<ChatMessage[]>([]),[input,setInput]=useState(""),[busy,setBusy]=useState(false),[scope,setScope]=useState("all"),[pending,setPending]=useState<AiAction|null>(null),[workingText,setWorkingText]=useState(""),[streamed,setStreamed]=useState("");
+  const [article,setArticle]=useState<ArticleDraft|null>(null),abortRef=useRef<AbortController|null>(null),messageList=useRef<HTMLDivElement>(null);
+  useEffect(()=>{try{const saved=localStorage.getItem("vocab-article-draft-v1");if(saved){const draft=JSON.parse(saved);if(Array.isArray(draft.words)&&typeof draft.text==="string")setArticle(draft);}}catch{}},[]);
+  useEffect(()=>{messageList.current?.scrollTo({top:messageList.current.scrollHeight,behavior:"smooth"});},[messages,busy,pending,streamed,article]);
+  useEffect(()=>()=>abortRef.current?.abort(),[]);
+  useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue="";};if(busy){document.documentElement.dataset.aiBusy="true";window.addEventListener("beforeunload",warn);}return()=>{delete document.documentElement.dataset.aiBusy;window.removeEventListener("beforeunload",warn);};},[busy]);
+  const leave=()=>{if(busy&&!confirm("AI 作業仍在進行，離開會取消。已完成文章章節保留，要離開嗎？"))return;abortRef.current?.abort();onClose();};
+  const saveArticle=(draft:ArticleDraft)=>{setArticle(draft);setWorkingText(`文章涵蓋 ${draft.words.length-draft.missing.length} / ${draft.words.length} 個單字`);try{localStorage.setItem("vocab-article-draft-v1",JSON.stringify(draft));}catch{setWorkingText("文章草稿儲存失敗，請先複製內容再離開");}};
+  const send=async(suggestion?:string,resume=false)=>{
+    const text=(suggestion??input).trim();if(!text||busy)return;if(!state.settings.aiApiKey&&!state.settings.aiProfiles?.length){onSettings();return;}
+    const next=[...messages,{role:"user",text} as ChatMessage];setMessages(next);setInput("");setBusy(true);setPending(null);setStreamed("");setWorkingText("正在連線與準備回答…");
+    const controller=new AbortController();abortRef.current=controller;
+    try {
+      if(resume || /(?:寫|生成|建立|產生|撰寫).*(?:文章|故事|閱讀)|(?:文章|故事).*(?:生成|撰寫)/.test(text)){
+        const explicit=state.decks.filter(d=>text.includes(d.name));const decks=explicit.length?explicit:state.decks.filter(d=>scope==="all"||d.id===scope);
+        const words=resume&&article?article.words:state.cards.filter(c=>decks.some(d=>d.id===c.deckId)).map(c=>c.word);
+        if(!words.length)throw Error("所選資料夾沒有單字，請先選擇有內容的資料夾");
+        await generateCoveredArticle(state.settings,words,text,controller.signal,saveArticle,resume?article?.text??"":"");
+      }else{
+        const response=await askAi(state,next.slice(-8),scope,controller.signal,raw=>setStreamed(partialReply(raw)));
+        if(controller.signal.aborted)return;setMessages(current=>[...current,{role:"assistant",text:response.reply}]);setPending(response.action?{...response.action,__scope:scope}:null);
+      }
+    }catch(error){setMessages(current=>[...current,{role:"assistant",text:controller.signal.aborted?"已停止，未執行資料修改；已完成文章章節保留。":`無法完成：${(error as Error).message}`}]);}
+    finally{if(abortRef.current===controller){setBusy(false);setStreamed("");abortRef.current=null;}}
   };
-  return <SheetFrame className="ai-sheet" title="Vocab AI" subtitle={scope === "all" ? `可編輯全部 ${state.decks.length} 個資料夾` : `可編輯：${state.decks.find(deck => deck.id === scope)?.name ?? ""}`} action={<button className="icon-button" aria-label="新對話" onClick={() => { abortRef.current?.abort(); setMessages([]); setPending(null); setInput(""); }}><MdAdd size={24} /></button>} onClose={() => { abortRef.current?.abort(); onClose(); }} wide>
-<div className="chat"><div className="chat-messages" ref={messageList} aria-live="polite">{!messages.length && <div className="assistant-welcome"><MdAutoAwesome size={30} /><h2>一起整理與練習</h2><p>選好可讀取的資料夾，告訴 AI 你想做什麼。任何修改都會先讓你確認。</p>{!state.settings.aiApiKey && !state.settings.aiProfiles?.length ? <button className="primary" onClick={onSettings}>設定 AI API</button> : [["整理資料", "依照字母排序這個資料夾"], ["比較容易混淆的單字", "找出容易混淆的單字"], ["建立閱讀文章", "根據這個資料夾寫一篇文章"], ["練習互動測驗", "製作五題互動測驗"]].map(([title, prompt]) => <ListRow key={title} title={title} icon={MdAutoAwesome} onClick={() => void send(prompt)} />)}</div>}{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><p>{message.text}</p>{message.role === "assistant" && <button onClick={() => navigator.clipboard.writeText(message.text)}>複製</button>}</div>)}{busy && <div className="message assistant working"><span className="spinner" />{workingText}</div>}{pending && <div className="assistant-action-card"><div><strong>等待你的確認</strong><p>{describeAiAction(pending, state)}</p></div><div><button className="secondary" onClick={() => setPending(null)}>取消</button><button className="primary" onClick={() => { const result = onApply(pending); setMessages(current => [...current, { role: "assistant", text: result }]); setPending(null); }}>確認執行</button></div></div>}</div><div className="assistant-scope"><span>可編輯範圍</span><select value={scope} onChange={event => setScope(event.target.value)}><option value="all">全部資料夾</option>{state.decks.map(deck => <option key={deck.id} value={deck.id}>{deck.name}</option>)}</select><small>AI 仍可讀取其他資料；此選項只限制可修改內容。</small></div><div className="composer"><textarea maxLength={4000} aria-label="傳送訊息給 Vocab AI" value={input} onChange={event => { setInput(event.target.value); event.currentTarget.style.height = "56px"; event.currentTarget.style.height = `${Math.min(140, event.currentTarget.scrollHeight)}px`; }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="告訴 AI 你想做什麼…" /><button className="send" aria-label={busy ? "停止" : "送出"} onClick={() => busy ? abortRef.current?.abort() : send()}>{busy ? <MdStop size={24} /> : <MdSend size={24} />}</button></div></div>
+  return <SheetFrame className="ai-sheet" title="Vocab AI" subtitle={scope==="all"?"可編輯全部資料夾":state.decks.find(d=>d.id===scope)?.name} action={<button className="icon-button" aria-label="新對話" disabled={busy} onClick={()=>{setMessages([]);setPending(null);setInput("");}}>＋</button>} onClose={leave} wide>
+    <div className="chat"><div className="chat-messages" ref={messageList} aria-live="polite">
+      {!messages.length&&<div className="assistant-welcome"><h2>一起整理與練習</h2><p>所有資料修改都會先讓你確認。文章會檢查所選資料夾的全部單字。</p><button className="secondary" onClick={onSettings}>AI 設定</button>{["依照字母排序這個資料夾","找出容易混淆的單字","根據這個資料夾寫一篇文章","製作五題互動測驗"].map(text=><button key={text} className="secondary" disabled={busy} onClick={()=>void send(text)}>{text}</button>)}</div>}
+      {messages.map((message,index)=><div key={index} className={`message ${message.role}`}><p>{message.text}</p>{message.role==="assistant"&&<button onClick={()=>void navigator.clipboard.writeText(message.text)}>複製</button>}</div>)}
+      {article&&<article className="article-draft"><h3>{article.done?"文章已完成":"文章草稿／尚未完成"} · {article.words.length-article.missing.length} / {article.words.length} 字</h3><p className="article-text">{(()=>{let cursor=0;const nodes:React.ReactNode[]=[];for(const span of articleHighlights(article.text,article.words)){nodes.push(article.text.slice(cursor,span.start),<mark key={span.start} title={state.cards.find(c=>c.word===span.word)?.definition??span.word}>{article.text.slice(span.start,span.end)}</mark>);cursor=span.end;}nodes.push(article.text.slice(cursor));return nodes;})()}</p><details><summary>目標單字與釋義</summary>{article.words.map(word=><p key={word}>{missingArticleWords(article.text,[word]).length?"○":"✓"} <mark>{word}</mark> — {state.cards.find(c=>c.word===word)?.definition??""}</p>)}</details>{!!article.missing.length&&<p>尚缺：{article.missing.join("、")}</p>}<button className="secondary" onClick={()=>void navigator.clipboard.writeText(article.text)}>複製文章</button>{!article.done&&<button className="primary" disabled={busy} onClick={()=>void send("繼續補齊文章所有遺漏單字",true)}>繼續補齊</button>}</article>}
+      {busy&&<div className="message assistant working"><span className="spinner"/><p>{streamed||workingText}</p><small>串流文字僅為草稿，完整驗證後才提供修改確認。</small></div>}
+      {pending&&<div className="assistant-action-card"><strong>等待你的確認</strong><p>{describeAiAction(pending,state)}</p><button className="secondary" onClick={()=>setPending(null)}>取消</button><button className="primary" onClick={()=>{const result=onApply(pending);setMessages(current=>[...current,{role:"assistant",text:result}]);setPending(null);}}>確認執行</button></div>}
+    </div><div className="assistant-scope"><span>可編輯範圍／文章單字</span><select value={scope} disabled={busy} onChange={e=>setScope(e.target.value)}><option value="all">全部資料夾</option>{state.decks.map(deck=><option key={deck.id} value={deck.id}>{deck.name}</option>)}</select></div><div className="composer"><textarea maxLength={4000} aria-label="傳送訊息給 Vocab AI" value={input} onChange={e=>setInput(e.target.value)} placeholder="告訴 AI 你想做什麼…" onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}}/><button className="send" aria-label={busy?"停止":"送出"} onClick={()=>busy?abortRef.current?.abort():void send()}>{busy?<MdStop size={24}/>:<MdSend size={24}/>}</button></div></div>
   </SheetFrame>;
 }
 
@@ -604,12 +649,13 @@ function parseAssistantResponse(raw: string): { reply: string; action: AiAction 
   catch { return { reply: raw, action: null }; }
 }
 
-async function askAi(state: VocabState, messages: ChatMessage[], scope: string, signal: AbortSignal) {
-  const readableContext = state.decks.map(deck => ({ id: deck.id, name: deck.name, course: deck.course, cardCount: state.cards.filter(card => card.deckId === deck.id).length, cards: (scope === "all" || scope === deck.id ? state.cards.filter(card => card.deckId === deck.id).slice(0, 250) : []).map(({ id, word, phonetic, partOfSpeech, definition, exampleSentence, exampleTranslation, mistakeCount }) => ({ id, word, phonetic, partOfSpeech, definition, exampleSentence, exampleTranslation, mistakeCount })) }));
+async function askAi(state: VocabState, messages: ChatMessage[], scope: string, signal: AbortSignal, onText?:(raw:string)=>void) {
+  const needsData=/資料夾|單字|詞性|排序|卡片|整理|修改|補齊|移動|測驗|題目|folder|vocab/i.test(messages.at(-1)?.text??"");
+  const readableContext = state.decks.map(deck => ({ id: deck.id, name: deck.name, course: deck.course, cardCount: state.cards.filter(card => card.deckId === deck.id).length, cards: (needsData&&(scope === "all" || scope === deck.id) ? state.cards.filter(card => card.deckId === deck.id).slice(0, 250) : []).map(({ id, word, partOfSpeech, definition }) => ({ id, word, partOfSpeech, definition })), contextLimited:state.cards.filter(card=>card.deckId===deck.id).length>250 }));
   const editableIds = scope === "all" ? state.decks.map(deck => deck.id) : [scope];
   const system = `你是 Vocab 的英文學習與資料管理助手。真實資料：${JSON.stringify(readableContext)}。可編輯資料夾 ID：${JSON.stringify(editableIds)}。你可以使用自己的英語知識推薦資料夾外的相近、易混淆或相關單字，但必須標示為推薦，不可假裝原本存在。回覆必須是一個 JSON：{"reply":"給使用者的繁體中文回答","action":null}。需要修改資料時，action 只能是：{"type":"sortAlphabetically","deckIds":[...]}; {"type":"createDeck","name":"","course":"","cards":[字卡欄位]}; {"type":"renameDeck","deckId":"","name":"","course":""}; {"type":"updateCards","updates":[{"id":"",可更新欄位}]}; {"type":"moveCards","words":[...],"targetDeckId":""}。使用者沒說新資料夾要放哪個課程時，必須先在 reply 詢問，action 為 null。任何修改都只提出 action，App 會讓使用者確認後執行。一般問答或文章不需要 action。只輸出 JSON，不要 Markdown。`;
   const style = state.settings.aiChatStyle === "strict" ? "只處理英文學習；不相關話題請禮貌拒絕。" : state.settings.aiChatStyle === "relaxed" ? "語氣自然輕鬆。" : "語氣清楚自然。";
-  return parseAssistantResponse(await requestAi(state.settings, `${system}\n${style}`, messages, undefined, signal));
+  return parseAssistantResponse(await requestAi(state.settings, `${system}\n${style}\n若 contextLimited 為 true，僅可修改明確列出的卡片，不可聲稱已核對整個資料夾。`, messages, undefined, signal,{onText}));
 }
 
 async function fetchWordDetails(state: VocabState, word: string, original?: Partial<CardDraft>): Promise<Partial<CardDraft>> {
@@ -671,39 +717,40 @@ function ImportSheet({ state, onClose, onImport }: { state: VocabState; onClose:
   </SheetFrame>;
 }
 
-function ScanSheet({ state, onClose, onImport }: { state: VocabState; onClose: () => void; onImport: (cards: Partial<CardDraft>[], deckId: string) => void }) {
-  const [scanFile, setScanFile] = useState<File | null>(null);
-  const [scanOpen, setScanOpen] = useState(false);
-  const recognizeScans = async (files: File[]) => {
-    setBusy(true); setCandidates([]); const results: Partial<CardDraft>[] = []; const seen = new Set<string>();
-    try {
-      for (const [index,file] of files.entries()) {
-        setStatus(`正在辨識第 ${index+1} / ${files.length} 頁…`);
-        for (const card of await extractCardsFromFile(state,file)) { const key=normalize(card.word ?? ""); if(!seen.has(key)){seen.add(key);results.push(card);} }
-      }
-      setCandidates(results);setStatus(`辨識完成，共 ${results.length} 張。請核對後再加入資料夾。`);return true;
-    } catch(error) {setStatus(`辨識失敗：${error instanceof Error ? error.message : "請重試"}；尚未匯入任何單字。`);return false;}
-    finally {setBusy(false);}
+function ScanSheet({ state, onClose, onImport }: { state: VocabState; onClose: () => void; onImport: (cards: Partial<CardDraft>[], deckId: string, newFolder?:boolean) => void }) {
+  type Job={id:string;file:File;url:string;status:"等待"|"辨識中"|"完成"|"失敗";error:string;cards:Partial<CardDraft>[]};
+  const [scanFile,setScanFile]=useState<File|null>(null);
+  const [scanOpen,setScanOpen]=useState(false),[deckId,setDeckId]=useState(state.decks[0]?.id??""),[jobs,setJobs]=useState<Job[]>([]),[busy,setBusy]=useState(false),[status,setStatus]=useState(""),[mode,setMode]=useState<ScanMode>("headwords"),[custom,setCustom]=useState(""),[candidates,setCandidates]=useState<(Partial<CardDraft>&{selected:boolean})[]>([]),[allowDuplicate,setAllowDuplicate]=useState(false);
+  const photos=useRef<HTMLInputElement>(null),camera=useRef<HTMLInputElement>(null),files=useRef<HTMLInputElement>(null),abort=useRef<AbortController|null>(null),urls=useRef(new Set<string>());
+  const aiAvailable=state.settings.aiEnabled&&!!(state.settings.aiApiKey||state.settings.aiProfiles?.length);
+  useEffect(()=>{const allocated=urls.current;return()=>{abort.current?.abort();allocated.forEach(url=>URL.revokeObjectURL(url));};},[]);
+  useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue="";};if(busy){document.documentElement.dataset.aiBusy="true";window.addEventListener("beforeunload",warn);}return()=>{delete document.documentElement.dataset.aiBusy;window.removeEventListener("beforeunload",warn);};},[busy]);
+  const addFiles=(incoming:File[])=>{if(jobs.length+incoming.length>30){setStatus("單次最多 30 個檔案，請分批匯入");return;}setJobs(current=>[...current,...incoming.map(file=>{const url=file.type.startsWith("image/")?URL.createObjectURL(file):"";if(url)urls.current.add(url);return{id:makeId(),file,url,status:"等待" as const,error:"",cards:[]};})]);};
+  const run=async()=>{
+    if(busy||!aiAvailable)return;setBusy(true);const controller=new AbortController();abort.current=controller;let completed=0;
+    const result=new Map(jobs.map(job=>[job.id,job]));
+    try{for(const [index,job] of jobs.entries()){
+      if(job.status==="完成")continue;if(controller.signal.aborted)break;
+      setStatus(`準備圖片／傳送／AI 辨識：第 ${index+1} / ${jobs.length} 張`);
+      setJobs(current=>current.map(item=>item.id===job.id?{...item,status:"辨識中",error:""}:item));
+      try{const cards=await extractCardsFromFile(state,job.file,mode,custom,controller.signal);const success={...job,status:"完成" as const,cards};result.set(job.id,success);setJobs(current=>current.map(item=>item.id===job.id?success:item));completed++;}
+      catch(error){const failed={...job,status:"失敗" as const,error:controller.signal.aborted?"已停止，可重試":(error as Error).message};result.set(job.id,failed);setJobs(current=>current.map(item=>item.id===job.id?failed:item));if(controller.signal.aborted)break;}
+    }}finally{
+      const seen=new Set<string>(),cards:typeof candidates=[];for(const job of result.values())for(const card of job.cards){const key=normalize(card.word??"");if(!key||seen.has(key))continue;seen.add(key);cards.push({...card,selected:true});}
+      setCandidates(cards);setBusy(false);abort.current=null;setStatus(`已保留 ${cards.length} 個辨識結果；本次完成 ${completed} 張。失敗圖片可重試，成功圖片不會重送。`);
+    }
   };
-  const [deckId, setDeckId] = useState(state.decks[0]?.id || ""); const [candidates, setCandidates] = useState<Partial<CardDraft>[]>([]); const [busy, setBusy] = useState(false); const [status, setStatus] = useState("");
-  const photoRef = useRef<HTMLInputElement>(null); const cameraRef = useRef<HTMLInputElement>(null); const scanRef = useRef<HTMLInputElement>(null); const fileRef = useRef<HTMLInputElement>(null);
-  const aiAvailable = state.settings.aiEnabled && state.settings.usePersonalAiApi && !!(state.settings.aiApiKey || state.settings.aiProfiles?.length);
-  const readSource = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; setCandidates([]);
-    if (!state.settings.aiApiKey && !state.settings.aiProfiles?.length) { setStatus("請先到設定加入 AI API Key；掃描不會使用 OCR 或假資料代替。"); return; }
-    setBusy(true); setStatus("正在把原始內容送到多模態 AI，並依由上到下、由左到右的順序辨識…");
-    try { const cards = await extractCardsFromFile(state, file); setCandidates(cards); setStatus(`辨識完成，共 ${cards.length} 張。請先核對預覽再加入。`); }
-    catch (error) { setStatus(`辨識失敗：${(error as Error).message}`); }
-    finally { setBusy(false); }
-  };
-  return <SheetFrame title="掃描匯入" subtitle="圖片與文件會直接交給多模態 AI" onClose={onClose} wide>
-    <div className="form scan-page">{state.decks.length ? <DeckPicker state={state} value={deckId} onChange={setDeckId} /> : <p className="scan-warning">尚未建立資料夾；可以先辨識，但無法匯入。</p>}{!aiAvailable && <p className="scan-warning">拍照與相片辨識需要先在設定中啟用個人 AI API。</p>}
-      <div className="scan-source-list"><button aria-label="拍照" disabled={busy || !aiAvailable} onClick={() => cameraRef.current?.click()}><MdCameraAlt size={24} /></button><button aria-label="掃描" title="文件邊框偵測、四角調整與裁切拉正" disabled={busy} onClick={() => {setScanFile(null);setScanOpen(true);}}><MdDocumentScanner size={24} /></button><button aria-label="相片" disabled={busy || !aiAvailable} onClick={() => photoRef.current?.click()}><MdPhotoLibrary size={24} /></button><button aria-label="檔案" disabled={busy} onClick={() => fileRef.current?.click()}><MdFolder size={24} /></button></div>
-      <input ref={photoRef} hidden type="file" accept="image/*" onChange={readSource} /><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={readSource} /><input ref={scanRef} data-testid="document-scan-input" hidden type="file" accept="image/*" capture="environment" onChange={event=>{const file=event.target.files?.[0];event.target.value="";if(file){setScanFile(file);setScanOpen(true);}}} /><input ref={fileRef} hidden type="file" accept="image/*,application/pdf" onChange={readSource} />
-      {busy && <div className="import-status"><span className="spinner" />{status}</div>}{!busy && status && <p className="import-status">{status}</p>}
-      {candidates.length > 0 && <div className="import-preview"><div><strong>辨識預覽</strong><span>{candidates.length} 張</span></div>{candidates.map((card,index) => <article key={`${card.word}-${index}`}><span>{index + 1}</span><div><strong>{card.word}</strong><small>{card.partOfSpeech} {card.definition}</small></div></article>)}<button className="primary wide" disabled={!deckId} onClick={() => onImport(candidates, deckId)}>加入資料夾最後方</button></div>}
-      {!busy && !candidates.length && <div className="empty scan-empty"><MdDocumentScanner size={28} /><h3>等待辨識內容</h3><p>拍照、掃描文件，或選擇現有檔案。</p></div>}
-      {scanOpen && <DocumentScanner initialFile={scanFile ?? undefined} canRecognize={aiAvailable} onRecognize={recognizeScans} onClose={()=>{setScanOpen(false);setScanFile(null);}} />}
+  const close=()=>{if((busy||jobs.length)&&!confirm("離開掃描？未匯入的圖片與結果將不保留，進行中的 AI 作業會取消。"))return;abort.current?.abort();onClose();};
+  return <SheetFrame title="掃描匯入" subtitle="主單字辨識 · 多張圖片 · 逐張保留結果" onClose={close} wide>
+    <div className="form scan-page">{state.decks.length?<DeckPicker state={state} value={deckId} onChange={setDeckId}/>:<p className="scan-warning">尚未建立資料夾；可以先辨識，但無法匯入。</p>}<label>辨識範圍<select disabled={busy} value={mode} onChange={e=>setMode(e.target.value as ScanMode)}><option value="headwords">主單字／標題（不從例句挑字）</option><option value="listed">全部明列詞條</option><option value="custom">自訂範圍</option></select></label>{mode==="custom"&&<label>自訂指令<input disabled={busy} value={custom} onChange={e=>setCustom(e.target.value)} placeholder="例如：只辨識左欄畫線的單字"/></label>}<p className="hint">辨識範圍套用於尚未成功的圖片；已完成圖片保留原結果。</p>
+    <div className="scan-source-list"><button aria-label="拍照" disabled={busy} onClick={()=>camera.current?.click()}><MdCameraAlt size={24}/></button><button aria-label="掃描" disabled={busy} onClick={()=>setScanOpen(true)}><MdDocumentScanner size={24}/></button><button aria-label="相片" disabled={busy} onClick={()=>photos.current?.click()}><MdPhotoLibrary size={24}/></button><button aria-label="檔案" disabled={busy} onClick={()=>files.current?.click()}><MdFolder size={24}/></button></div>
+    {!jobs.length&&<div className="empty scan-empty"><MdDocumentScanner size={28}/><h3>等待辨識內容</h3><p>拍照、掃描文件，或多選現有圖片；只會辨識你指定的詞條範圍。</p></div>}
+    <input ref={photos} hidden type="file" accept="image/*" multiple onChange={e=>{addFiles(Array.from(e.target.files??[]));e.target.value="";}}/><input ref={camera} hidden type="file" accept="image/*" capture="environment" onChange={e=>{addFiles(Array.from(e.target.files??[]));e.target.value="";}}/><input ref={files} hidden type="file" accept="image/*,application/pdf" multiple onChange={e=>{addFiles(Array.from(e.target.files??[]));e.target.value="";}}/>
+    <section aria-label="圖片辨識工作清單" className="image-jobs">{jobs.map((job,index)=><article key={job.id}>{job.url&&<img src={job.url} alt={`第 ${index+1} 張`}/>}<div><strong>{index+1}. {job.file.name}</strong><p>{job.status} {job.error}</p><small>{job.cards.length} 個詞條</small></div><button className="secondary" disabled={busy||index===0} aria-label={`第 ${index+1} 張往前`} onClick={()=>setJobs(current=>{const next=[...current];[next[index-1],next[index]]=[next[index],next[index-1]];return next;})}>↑</button><button className="secondary" disabled={busy} onClick={()=>{URL.revokeObjectURL(job.url);urls.current.delete(job.url);setJobs(current=>current.filter(j=>j.id!==job.id));setCandidates([]);}}>刪除</button></article>)}</section>
+    <p role="status">{status}</p>{busy?<button className="secondary" onClick={()=>abort.current?.abort()}>停止辨識（保留成功結果）</button>:<button className="primary" disabled={!aiAvailable||!jobs.some(j=>j.status!=="完成")||(mode==="custom"&&!custom.trim())} onClick={()=>void run()}>開始辨識／只重試未完成圖片</button>}{!aiAvailable&&<p>請先在設定加入支援圖片的 AI API Key。</p>}
+    {!!candidates.length&&<section className="import-preview"><h3>核對結果（{candidates.length} 字）</h3><label><input type="checkbox" checked={allowDuplicate} onChange={e=>setAllowDuplicate(e.target.checked)}/>重複單字另建新資料夾（預設略過目標資料夾已有單字）</label>{candidates.map((card,index)=>{const duplicate=state.cards.some(c=>c.deckId===deckId&&normalize(c.word)===normalize(card.word??""));return <article key={index}><input type="checkbox" aria-label={`選取第 ${index+1} 個單字`} checked={card.selected} onChange={e=>setCandidates(current=>current.map((c,i)=>i===index?{...c,selected:e.target.checked}:c))}/><div><input aria-label={`第 ${index+1} 個單字`} value={card.word??""} onChange={e=>setCandidates(current=>current.map((c,i)=>i===index?{...c,word:e.target.value}:c))}/><textarea aria-label={`第 ${index+1} 個解釋`} value={card.definition??""} onChange={e=>setCandidates(current=>current.map((c,i)=>i===index?{...c,definition:e.target.value}:c))}/>{duplicate&&<small>目標資料夾已有此單字</small>}</div></article>;})}<button className="primary wide" disabled={busy||!deckId||!candidates.some(c=>c.selected&&c.word?.trim()&&c.definition?.trim())} onClick={()=>onImport(candidates.filter(c=>c.selected&&c.word?.trim()&&c.definition?.trim()),deckId,allowDuplicate)}>確認加入所選單字</button></section>}
+    <input hidden type="file" data-testid="document-scan-input" accept="image/*" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file){setScanFile(file);setScanOpen(true);}}}/>
+    {scanOpen&&<DocumentScanner initialFile={scanFile??undefined} canRecognize onRecognize={async files=>{addFiles(files);return true;}} onClose={()=>{setScanOpen(false);setScanFile(null);}}/>}
     </div>
   </SheetFrame>;
 }
@@ -723,11 +770,11 @@ function parseAiCards(raw: string): Partial<CardDraft>[] {
   }).map(card => ({ ...blankCard, ...card, word: card.word?.trim() || "" }));
 }
 
-async function extractCardsFromFile(state: VocabState, file: File) {
-  if (file.size > 12 * 1024 * 1024) throw new Error("檔案超過 12 MB，請先壓縮或分頁處理");
+async function extractCardsFromFile(state: VocabState, original: File, mode:ScanMode="headwords", custom="", signal?:AbortSignal) {
+  const file=await prepareAiFile(original);
   if (!file.type.startsWith("image/") && state.settings.aiProvider !== "gemini") throw new Error("此供應商目前只直接接收圖片；PDF 請選 Gemini 或先轉成照片");
   const base64 = await fileAsBase64(file);
-  return parseAiCards(await requestAi(state.settings, state.settings.aiImagePrompt, [], { mime: file.type || "application/octet-stream", base64 }));
+  return parseAiCards(await requestAi(state.settings, `${state.settings.aiImagePrompt}\n本次範圍指令優先：${scanInstructions(mode,custom)}`, [], { mime: file.type || "application/octet-stream", base64 },signal));
 }
 
 function speak(text: string, rate = 1) {

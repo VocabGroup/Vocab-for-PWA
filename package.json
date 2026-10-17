@@ -1,6 +1,6 @@
 {
   "name": "vocab-pwa",
-  "version": "3.1.3",
+  "version": "3.2.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -18,7 +18,7 @@
     "build:pages": "npm run build && node scripts/prepare-pages.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json --local",
     "test": "npm run test:core && npm run typecheck && npm run build",
-    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs tests/import-json.test.mjs tests/ecdict.test.mjs",
+    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs tests/import-json.test.mjs tests/ecdict.test.mjs tests/sharing-ai.test.mjs",
     "test:browser": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"

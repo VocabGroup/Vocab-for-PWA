@@ -1,12 +1,13 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Local blob previews must never be sent to an image optimizer. */
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CornerEditor } from "scanic";
 import { LiveDocumentCamera } from "./LiveDocumentCamera";
-import { MdArrowBack, MdCameraAlt, MdPhotoLibrary, MdDeleteOutline } from "react-icons/md";
+import { MdArrowBack, MdCameraAlt, MdPhotoLibrary, MdDeleteOutline, MdAdd, MdCropRotate, MdFilter, MdRotateRight, MdClose } from "react-icons/md";
 
-type Page = { file: File; url: string };
+type Page = { file: File; url: string; original:File };
 
 // Scanic is loaded only when the scanner is opened; no CDN or model upload is used.
 export function DocumentScanner({ initialFile, canRecognize, onRecognize, onClose }: {
@@ -15,6 +16,7 @@ export function DocumentScanner({ initialFile, canRecognize, onRecognize, onClos
   const [active, setActive] = useState<File | null>(initialFile ?? null);
   const [live, setLive] = useState(!initialFile);
   const [pages, setPages] = useState<Page[]>([]);
+  const [selected,setSelected]=useState(0),[editing,setEditing]=useState<number|null>(null),[pendingFiles,setPendingFiles]=useState<File[]>([]);
   const [working, setWorking] = useState(!!initialFile);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState(initialFile ? "正在本機偵測文件邊框…" : "即時框線只作預覽，拍攝後會重新偵測照片，讓你確認四角。");
@@ -75,33 +77,39 @@ export function DocumentScanner({ initialFile, canRecognize, onRecognize, onClos
       const blob=await new Promise<Blob>((resolve,reject)=>result.output instanceof HTMLCanvasElement && result.output.toBlob(value=>value ? resolve(value):reject(new Error("無法輸出圖片")),"image/jpeg",0.92));
       if(!alive.current)return;
       const file=new File([blob],`scan-${Date.now()}.jpg`,{type:"image/jpeg"}), url=URL.createObjectURL(file);urls.current.add(url);
-      setPages(current=>[...current,{file,url}]);setActive(null);setReady(false);setMessage("裁切已完成，可以繼續拍攝下一頁，或送交 AI 辨識。");
+      setPages(current=>editing===null?[...current,{file,url,original:file}]:current.map((page,index)=>index===editing?{file,url,original:file}:page));setSelected(editing??pages.length);setEditing(null);setActive(null);setReady(false);setMessage("裁切已完成，可以繼續拍攝下一頁，或按繼續。");
+      if(pendingFiles.length){const [next,...rest]=pendingFiles;setPendingFiles(rest);choose(next);}
     } catch(error){if(alive.current)setMessage(`裁切失敗：${error instanceof Error ? error.message : "請重試"}`);}
     finally{cropLock.current=false;if(alive.current)setWorking(false);}
   }
-  function choose(file?:File) {if(file){setLive(false);setActive(file);setReady(false);setWorking(true);setMessage("正在本機偵測文件邊框…");}}
-  function discard() {setActive(null);setReady(false);setMessage("已取消這一頁，已裁切的頁面仍保留。");}
+  function choose(file?:File) {if(file){setEditing(null);setLive(false);setActive(file);setReady(false);setWorking(true);setMessage("正在本機偵測文件邊框…");}}
+  async function transform(kind:"rotate"|"filter"|"clear"){
+    const page=pages[selected];if(!page||working)return;setWorking(true);
+    try{const url=URL.createObjectURL(kind==="clear"?page.original:page.file);try{const image=new Image();image.src=url;await image.decode();const canvas=document.createElement("canvas");canvas.width=kind==="rotate"?image.height:image.width;canvas.height=kind==="rotate"?image.width:image.height;const ctx=canvas.getContext("2d")!;if(kind==="rotate"){ctx.translate(canvas.width,0);ctx.rotate(Math.PI/2);}if(kind==="filter")ctx.filter="grayscale(1) contrast(1.35) brightness(1.08)";ctx.drawImage(image,0,0);const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error("無法輸出圖片")),"image/jpeg",.92));const file=new File([blob],page.file.name,{type:"image/jpeg"}),nextUrl=URL.createObjectURL(file);urls.current.add(nextUrl);setPages(current=>current.map((p,i)=>i===selected?{...p,file,url:nextUrl}:p));}finally{URL.revokeObjectURL(url);}}catch(error){setMessage((error as Error).message);}finally{setWorking(false);}
+  }
+  function discard() {setActive(null);setReady(false);setMessage("已取消這一頁，已裁切的頁面仍保留。");if(pendingFiles.length){const [next,...rest]=pendingFiles;setPendingFiles(rest);choose(next);}}
   async function recognize() {
     if(working || live || !pages.length || active || !canRecognize)return;
     setWorking(true);setMessage("正在依頁面順序交給 AI 辨識…");
     try {if(await onRecognize(pages.map(page=>page.file)))onClose();else setMessage("AI 辨識失敗，裁切頁面已保留，請關閉後檢查設定或再試一次。");}
     finally {if(alive.current)setWorking(false);}
   }
-  return createPortal(<div ref={dialog} tabIndex={-1} className="document-scan-overlay" role="dialog" aria-modal="true" aria-labelledby="document-scan-title">
-    <header><button className="icon-button" aria-label="返回掃描匯入" disabled={working} onClick={()=>{if((pages.length || active) && !window.confirm("關閉掃描器？未送出的掃描頁面將不保留。"))return;onClose();}}><MdArrowBack size={24}/></button><h2 id="document-scan-title">文件掃描</h2></header>
+  const close=()=>{if(working)return;if((pages.length||active)&&!confirm("取消掃描作業？未送出的頁面會移除。"))return;onClose();};
+  return createPortal(<div ref={dialog} tabIndex={-1} className={`document-scan-overlay scanner-dark ${live?"scanner-live":"scanner-review"}`} role="dialog" aria-modal="true" aria-labelledby="document-scan-title">
+    <header><button className="icon-button" aria-label="返回掃描匯入" disabled={working} onClick={close}>{live?<MdClose size={28}/>:<MdArrowBack size={28}/>}</button><h2 id="document-scan-title">{live?"文件掃描":"編輯掃描頁面"}</h2></header>
     <div className="document-scan-body">
-      <p className="hint">裁切與拉正在手機本機處理，按「送交 AI 辨識」才會上傳。</p>
-      <p role="status">{message}</p>
-      {live && <LiveDocumentCamera onCapture={choose}/>}
-      {active && <><div className="document-corner-host" ref={host}/><div className="document-scan-actions"><button className="secondary" disabled={working} onClick={discard}>取消這頁</button><button className="secondary" disabled={!ready || working} onClick={()=>editor.current?.reset()}>重設四角</button><button className="primary" disabled={!ready || working} onClick={()=>void crop()}>{working ? "處理中…":"裁切並保留"}</button></div></>}
-      {!active && <><div className="document-scan-actions">{!live && <button className="secondary" disabled={working || pages.length>=10} onClick={()=>{setLive(true);setMessage("即時框線只作預覽，拍攝後會重新偵測照片。");}}><MdCameraAlt/>拍下一頁</button>}{live && <button className="secondary" onClick={()=>setLive(false)}>關閉即時鏡頭</button>}<button className="secondary" disabled={working || pages.length>=10} onClick={()=>camera.current?.click()}><MdCameraAlt/>改用拍照</button><button className="secondary" disabled={working || pages.length>=10} onClick={()=>photos.current?.click()}><MdPhotoLibrary/>選擇照片</button></div></>}
+      {live?<LiveDocumentCamera onCapture={choose} onPhotos={()=>photos.current?.click()}/>:<>
+        <div className="scan-preview-stage">{active?<div className="document-corner-host" ref={host}/>:pages[selected]?<img className="scan-review-image" src={pages[selected].url} alt={`掃描第 ${selected+1} 頁預覽`}/>:<p>選擇照片或拍攝文件</p>}{!active&&!!pages.length&&<div className="scan-preview-overlay"><button aria-label="重新調整四角" disabled={working} onClick={()=>{setEditing(selected);setActive(pages[selected].file);setReady(false);setWorking(true);}}><MdCropRotate size={24}/></button><button aria-label="刪除目前頁面" disabled={working} onClick={()=>{setPages(current=>current.filter((_,i)=>i!==selected));setSelected(Math.max(0,selected-1));}}><MdDeleteOutline size={24}/></button></div>}</div>
+        <p role="status" className="scan-status">{message}</p>
+        {active?<div className="document-scan-actions"><button className="secondary" disabled={working} onClick={discard}>取消這頁</button><button className="secondary" disabled={!ready||working} onClick={()=>editor.current?.reset()}>重設四角</button><button className="primary" disabled={!ready||working} onClick={()=>void crop()}>{working?"處理中…":"裁切並保留"}</button></div>:<>
+          <div className="scan-edit-tools"><button disabled={!pages.length||working} onClick={()=>void transform("filter")}><MdFilter/>濾鏡</button><button disabled={!pages.length||working} onClick={()=>{setEditing(selected);setActive(pages[selected].file);setReady(false);setWorking(true);}}><MdCropRotate/>裁剪</button><button disabled={!pages.length||working} onClick={()=>void transform("rotate")}><MdRotateRight/>旋轉</button><button disabled={!pages.length||working} onClick={()=>void transform("clear")}>清除濾鏡</button></div>
+          <section aria-label="已掃描頁面" className="scan-thumbnail-strip">{pages.map((page,index)=><button key={page.url} className={selected===index?"selected":""} aria-label={`選取第 ${index+1} 頁`} onClick={()=>setSelected(index)}><img src={page.url} alt={`掃描第 ${index+1} 頁`}/><span>{index+1}</span></button>)}<button className="scan-add-page" disabled={working||pages.length>=30} aria-label="新增掃描頁面" onClick={()=>setLive(true)}><MdAdd size={32}/></button></section>
+        </>}
+      </>}
       <input ref={camera} data-testid="scan-next-camera" hidden type="file" accept="image/*" capture="environment" onChange={event=>{choose(event.target.files?.[0]);event.target.value="";}}/>
-      <input ref={photos} data-testid="scan-next-photo" hidden type="file" accept="image/*" onChange={event=>{choose(event.target.files?.[0]);event.target.value="";}}/>
-      {/* Local blob previews must not pass through a server image optimizer. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {!!pages.length && <section aria-label="已掃描頁面" className="document-pages"><h3>已掃描 {pages.length} 頁（最多 10 頁）</h3>{pages.map((page,index)=><article key={page.url}><img src={page.url} alt={`掃描第 ${index+1} 頁`}/><span>第 {index+1} 頁</span><button className="icon-button danger-text" disabled={working} aria-label={`刪除第 ${index+1} 頁`} onClick={()=>{URL.revokeObjectURL(page.url);urls.current.delete(page.url);setPages(current=>current.filter(item=>item!==page));}}><MdDeleteOutline size={22}/></button></article>)}</section>}
-      {!canRecognize && <p className="scan-warning">可先掃描與裁切；送交辨識需要在設定啟用個人 AI API。</p>}
+      <input ref={photos} data-testid="scan-next-photo" hidden type="file" accept="image/*" multiple onChange={event=>{const files=Array.from(event.target.files??[]);event.target.value="";if(files.length+pages.length>30){setMessage("單次最多 30 頁");return;}const [first,...rest]=files;if(first){setPendingFiles(rest);choose(first);}}}/>
+      {!live&&!active&&<div className="scan-source-fallbacks"><button onClick={()=>camera.current?.click()}><MdCameraAlt/>改用拍照</button><button onClick={()=>photos.current?.click()}><MdPhotoLibrary/>選擇照片</button></div>}
     </div>
-    <footer><button className="primary wide" disabled={!pages.length || live || !!active || working || !canRecognize} onClick={()=>void recognize()}>送交 AI 辨識（{pages.length} 頁）</button><small>掃描功能使用 Scanic（MIT） · <a href="/licenses/scanic.txt" target="_blank" rel="noreferrer">授權聲明</a></small></footer>
+    {!live&&<footer><div className="scanner-bottom-actions"><button className="secondary" disabled={working} onClick={close}>取消掃描作業</button><button className="primary" disabled={!pages.length||!!active||working||!canRecognize||!!pendingFiles.length} onClick={()=>void recognize()}>繼續（{pages.length} 頁）</button></div><small>圖片只在按開始辨識後傳送 AI · Scanic（MIT） <a href="/licenses/scanic.txt" target="_blank" rel="noreferrer">授權</a></small></footer>}
   </div>,document.body);
 }
