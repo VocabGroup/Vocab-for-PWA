@@ -1,6 +1,6 @@
 # Vocab PWA
 
-Vocab for PWA **3.3.0**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
+Vocab for PWA **3.3.1**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
 
 3.3.0 新增 7 天到期的教材網址／QR 分享、分享預覽匯入，以及單字測驗題數與未完成進度接續。雲端分享需 Production KV／Secret，詳見 [SHARING_SETUP.md](SHARING_SETUP.md)。網址內容持有人皆可讀取；個人筆記預設不分享。Android 新教材庫分組與四入口不是本版 PWA 已完成的 1:1 移植。
 
