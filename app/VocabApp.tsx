@@ -75,6 +75,7 @@ export function VocabApp() {
       setPreviewOnboarding(new URLSearchParams(location.search).get("preview") === "onboarding");
       backend.current = loaded.backend;
       setState(loaded.state); setReady(true);
+      if(sessionStorage.getItem("vocab-pending-share"))setTab("folders");
     }).catch(error => { if (!cancelled) setStorageError(`無法讀取本機資料：${error instanceof Error ? error.message : "請重新開啟 Vocab"}`); });
     return () => { cancelled = true; };
   }, []);

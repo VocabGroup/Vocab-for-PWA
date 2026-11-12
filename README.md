@@ -1,6 +1,8 @@
 # Vocab PWA
 
-Vocab for PWA **3.2.0**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
+Vocab for PWA **3.3.0**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
+
+3.3.0 新增 7 天到期的教材網址／QR 分享、分享預覽匯入，以及單字測驗題數與未完成進度接續。雲端分享需 Production KV／Secret，詳見 [SHARING_SETUP.md](SHARING_SETUP.md)。網址內容持有人皆可讀取；個人筆記預設不分享。Android 新教材庫分組與四入口不是本版 PWA 已完成的 1:1 移植。
 
 3.2.0 新增與 Android 互通的資料夾分享／匯入、多圖辨識與部分重試、深色多頁掃描器、主單字辨識範圍、AI 串流與鍵盤定位、單字草稿恢復，以及全資料夾文章覆蓋檢查。分享檔不帶學習進度，個人筆記預設排除；AI 操作仍需使用者確認。
 
@@ -40,4 +42,4 @@ npm run test:browser
 
 Cloudflare Pages 使用 Advanced Mode：建置指令 `npm run build:pages`，輸出目錄 `dist/pages`，Functions 相容性旗標 `nodejs_compat`，相容日期 `2026-10-07`。輸出包含單一 `_worker.js`、靜態資源與離線快取清單。請只部署此輸出，不要上傳整個工作區。免費網址為 Cloudflare 提供的 `*.pages.dev`，不等於免費取得自訂頂級網域。
 
-發布前閱讀 [SECURITY.md](SECURITY.md)，執行 `npm audit` 與 `npm audit --omit=dev`。目前正式依賴已無已知套件警示；開發／建置工具的上游 `braces` 仍有 8 項連帶警示。已加入可重現的本機深度／AST 防護及攻擊輸入測試，保留原套件版本與警示，不冒稱上游已修補或零風險。一般安裝及開發／建置／檢查會自動套用；使用 `--ignore-scripts` 後若直接執行其他工具，須先執行 `node scripts/guard-braces.mjs`。不要盲目使用 `npm audit fix --force`，也不要在不受信任的 PR 建置提供部署金鑰。
+發布前閱讀 [SECURITY.md](SECURITY.md)，執行 npm audit、core／browser 測試、lint、typecheck 與 build:pages。2026-11-12 依賴更新後的完整與正式依賴掃描均無已知警示，但不代表零風險；保留 braces 相容性防護，typescript-estree 的 minimatch 安全 override 須隨上游更新檢查。不要使用 npm audit fix --force，也不要向不受信任的 PR 提供正式 Secret。

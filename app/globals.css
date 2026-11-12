@@ -34,7 +34,7 @@
 * { box-sizing: border-box; }
 html { min-height: 100%; background: var(--bg); font-size:calc(16px * var(--font-scale)); }
 body { margin: 0; min-height: 100dvh; color: var(--text); background:var(--bg-deep); font-family:var(--app-font, Inter, ui-rounded, "SF Pro Rounded", "PingFang TC", "Noto Sans TC", system-ui, sans-serif); -webkit-font-smoothing: antialiased; isolation:isolate; }
-body::before { content:""; position:fixed; z-index:-1; inset:0; pointer-events:none; opacity:var(--background-opacity); filter:brightness(var(--background-brightness)); background:radial-gradient(circle at 90% 0%,color-mix(in srgb,var(--accent) 32%,transparent),transparent 34%),linear-gradient(155deg,var(--bg),var(--bg-deep)); }
+body::before { content:""; position:fixed; z-index:-1; inset:0; pointer-events:none; opacity:var(--background-opacity); filter:brightness(var(--background-brightness)); background:var(--bg); }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { border: 0; cursor: pointer; }
 button:disabled { opacity: .42; cursor: default; }
@@ -539,6 +539,9 @@ button:focus-visible, a:focus-visible { outline:3px solid var(--primary); outlin
 .pwa-status p { margin:0; display:flex; align-items:center; gap:8px; line-height:1.5; }
 .pwa-status>div { display:grid; gap:8px; }
 .pwa-status button.secondary { display:flex; align-items:center; justify-content:center; gap:8px; }
+.pwa-status{pointer-events:none}
+.pwa-status button,.pwa-status a{pointer-events:auto}
+body:has([role="menu"]) .pwa-status{display:none}
 /* Defer browser-only notices while first-entry or modal controls need the viewport. */
 body:has(.android-onboarding) .pwa-status, body:has(.sheet-backdrop) .pwa-status, body:has(.browser-entry) .pwa-status { display:none; }
 .install-backdrop { position:fixed; z-index:120; inset:0; display:flex; align-items:flex-end; justify-content:center; padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); background:rgba(0,0,0,.4); }

@@ -26,7 +26,7 @@ test("Android source dimensions, themes, shared rows and real course actions", a
   });
   expect(styles).toEqual({ padding:"20px", radius:"24px", background:"rgb(255, 255, 255)", gap:"12px", font:"17px", line:"23px", weight:"600" });
   const nav = await page.locator(".bottom-nav").evaluate(element => ({ height:element.getBoundingClientRect().height, radius:getComputedStyle(element).borderRadius }));
-  expect(nav).toEqual({ height:70, radius:"34px" });
+  expect(nav).toEqual({ height:64, radius:"34px" });
   const row = await page.locator(".modern-list-row").first().evaluate(element => ({ padding:getComputedStyle(element).padding, radius:getComputedStyle(element).borderRadius, gap:getComputedStyle(element).gap }));
   expect(row).toEqual({ padding:"16px", radius:"18px", gap:"12px" });
   await page.getByRole("button", { name:"旅遊英文", exact:true }).click();

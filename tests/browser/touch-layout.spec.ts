@@ -27,7 +27,7 @@ test("same-origin manifest and transparent nav; independent lookup, history and 
   const response = await page.request.get(new URL(manifest!, page.url()).href); expect(response.ok()).toBe(true);
   const nav = await page.locator(".bottom-nav").evaluate(element => ({ height:element.getBoundingClientRect().height, background:getComputedStyle(element).backgroundColor,
     icon:getComputedStyle(element.querySelector("button.active .icon")!).backgroundColor, button:element.querySelector("button")!.getBoundingClientRect().height }));
-  expect(nav.height).toBe(70); expect(nav.button).toBe(58); expect(nav.icon).toBe("rgba(0, 0, 0, 0)"); expect(nav.background).toContain("0.55");
+  expect(nav.height).toBe(64); expect(nav.button).toBe(52); expect(nav.icon).toBe("rgba(0, 0, 0, 0)"); expect(nav.background).toContain("0.3");
   await page.getByRole("button", { name:"搜尋單字", exact:true }).click();
   await expect(page.getByRole("heading", { name:"搜尋紀錄" })).toBeVisible();
   await page.getByRole("textbox", { name:"搜尋英文單字或中文解釋" }).fill("持續"); await page.getByRole("button", { name:"搜尋", exact:true }).click();

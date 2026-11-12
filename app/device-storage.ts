@@ -75,6 +75,6 @@ export function flushStateWrites(): Promise<void> { return pendingWrite; }
 export function clearLearningSessions() {
   // Keep unrelated browser data and PWA installation preferences intact.
   const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i));
-  keys.filter((key): key is string => Boolean(key?.startsWith("vocab-study-session-") || key?.startsWith("vocab-reminder-")))
+  keys.filter((key): key is string => Boolean(key?.startsWith("vocab-study-session-") || key?.startsWith("vocab-quiz-session-") || key?.startsWith("vocab-reminder-")))
     .forEach(key => localStorage.removeItem(key));
 }

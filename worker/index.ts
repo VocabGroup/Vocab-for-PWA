@@ -1,8 +1,9 @@
 /** Cloudflare Worker entry point for Vocab PWA. */
 import handler from "vinext/server/app-router-entry";
+import { shareRequest, type ShareEnv } from "./shares";
 import { publicImportUrl, fetchPublicImport, boundedText, secureResponse } from "./security";
 
-interface Env {
+interface Env extends ShareEnv {
   ASSETS: Fetcher;
 }
 
@@ -14,6 +15,12 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/api/shares" || url.pathname.startsWith("/api/shares/")) return secureResponse(await shareRequest(request,env));
+    if (url.pathname === "/share") {
+      const response=await handler.fetch(request,env,ctx),headers=new Headers(response.headers);
+      headers.set("X-Robots-Tag","noindex, nofollow");headers.set("Cache-Control","no-store");
+      return secureResponse(new Response(response.body,{status:response.status,headers}));
+    }
 
     if (url.pathname === "/api/import-url" && request.method === "POST") {
       const origin=request.headers.get("origin");

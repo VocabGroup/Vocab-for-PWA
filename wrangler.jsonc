@@ -2,5 +2,7 @@
   "name": "vocab-adam",
   "pages_build_output_dir": "./dist/pages",
   "compatibility_date": "2026-10-07",
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [{"binding":"VOCAB_SHARES","id":"1e9393e99f2347c8b853b5ca15791e79"}],
+  "env": {"preview":{"kv_namespaces":[]}}
 }

@@ -8,6 +8,11 @@ Report vulnerabilities privately through the repository's GitHub security adviso
 - Backups exclude personal AI credentials. AI requests send the selected content and the user's own key to the selected provider. Scanner images stay local until the user explicitly starts AI recognition.
 - No maintainer Gemini, OpenAI, GitHub or Cloudflare key is distributed with the application. Do not configure such keys in public frontend environment variables.
 - Hosting providers receive normal connection metadata. Dictionary queries and public-deck imports contact third-party services.
+- Optional URL/QR sharing uploads only explicitly selected, whitelisted teaching content to the maintainer's Cloudflare KV for 7 days. Anyone holding the link can read it. Learning state and API credentials are excluded; notes are opt-in. There is no public listing. See SHARING_SETUP.md for expiry, revocation and best-effort quota limitations.
+
+## Dependency review — 2026-11-12
+
+Next 16.4.6, React/RSC 19.3.1 and updated Cloudflare tooling replace newly vulnerable versions. The typescript-estree-only minimatch override to 11.0.1 removes the remaining globparts advisory; lint/build tests must pass with it, and it should be removed when the upstream range includes a patched version. Both full `npm audit` and `npm audit --omit=dev` report zero known warnings at this review, not a guarantee of zero vulnerabilities.
 
 ## Deployment safeguards
 

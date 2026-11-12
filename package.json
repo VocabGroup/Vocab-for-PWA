@@ -1,6 +1,6 @@
 {
   "name": "vocab-pwa",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -18,38 +18,45 @@
     "build:pages": "npm run build && node scripts/prepare-pages.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json --local",
     "test": "npm run test:core && npm run typecheck && npm run build",
-    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs tests/import-json.test.mjs tests/ecdict.test.mjs tests/sharing-ai.test.mjs",
+    "test:core": "node --test tests/core.test.mjs tests/service-worker.test.mjs tests/security.test.mjs tests/braces-security.test.mjs tests/import-json.test.mjs tests/ecdict.test.mjs tests/sharing-ai.test.mjs tests/share-links.test.mjs tests/quiz-draft.test.mjs",
     "test:browser": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
-    "next": "16.4.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "next": "16.4.6",
+    "qrcode": "^1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "react-icons": "^5.5.0",
     "scanic": "1.6.0"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.63.0",
-    "@cloudflare/workers-types": "5.20261007.1",
+    "@cloudflare/vite-plugin": "1.69.1",
+    "@cloudflare/workers-types": "5.20261112.1",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.34",
-    "eslint": "9.39.4",
     "esbuild": "0.28.1",
-    "eslint-config-next": "16.4.0",
-    "react-server-dom-webpack": "19.2.8",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.4.6",
+    "react-server-dom-webpack": "19.3.1",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "1.0.1",
     "vite": "8.3.3",
-    "wrangler": "4.148.0"
+    "wrangler": "4.160.1"
   },
-  "overrides": { "sharp": "0.35.5", "fflate": "0.8.3", "braces": "3.0.3" },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": { "minimatch": "11.0.1" },
+    "sharp": "0.35.5",
+    "fflate": "0.8.3",
+    "braces": "3.0.3"
+  },
   "type": "module"
 }
