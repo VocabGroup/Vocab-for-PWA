@@ -53,7 +53,7 @@ export type AppSettings = {
   onboardingDone: boolean;
   fullscreenOnLaunch?: boolean;
   dailyGoal: number;
-  theme: "system" | "light" | "dark" | "navy" | "lightBlue" | "teal" | "green" | "pink" | "red" | "purple" | "orange" | "custom";
+  theme: "system" | "light" | "dark" | "navy" | "lightBlue" | "iceBlue" | "cornflower" | "teal" | "green" | "pink" | "red" | "purple" | "orange" | "custom";
   customPrimary: string;
   customBackground: string;
   gradientEnabled: boolean;
@@ -107,6 +107,7 @@ export type AppSettings = {
 
 export type VocabState = {
   version: 1;
+  courseCovers?: Record<string, string>;
   decks: Deck[];
   cards: Card[];
   logs: StudyLog[];

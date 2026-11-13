@@ -1,5 +1,6 @@
 import type { Card, Deck, StudyLog, VocabState } from "./types";
 import { DEFAULT_IMAGE_PROMPT, DEFAULT_WORD_PROMPT } from "./prompts";
+import { normalizeCourseCovers } from "./course-covers";
 
 export const STORAGE_KEY = "vocab-pwa-state-v1";
 
@@ -13,7 +14,7 @@ export const emptyState: VocabState = {
     onboardingDone: false,
     fullscreenOnLaunch: true,
     dailyGoal: 20,
-    theme: "system",
+    theme: "lightBlue",
     customPrimary: "#39796D",
     customBackground: "#EAF3F1",
     gradientEnabled: false,
@@ -104,6 +105,7 @@ function normalizeWebBackup(raw: Partial<VocabState>): VocabState {
   if (cards.some(card => !deckIds.has(card.deckId))) throw new Error("備份中有單字卡找不到所屬資料夾");
   return {
     version: 1,
+    courseCovers: normalizeCourseCovers(raw.courseCovers),
     decks: decks.map((deck, index) => ({ ...deck, order: Number.isFinite(deck.order) ? deck.order : index, color: deck.color || "#426B63", createdAt: Number.isFinite(deck.createdAt) ? deck.createdAt : Date.now() })),
     cards: cards.map((card, index) => ({ ...card, order: Number.isFinite(card.order) ? card.order : index, phonetic: card.phonetic || "", partOfSpeech: card.partOfSpeech || "", exampleSentence: card.exampleSentence || "", exampleTranslation: card.exampleTranslation || "", notes: card.notes || "", mastered: Boolean(card.mastered), favorite: Boolean(card.favorite), suspended: Boolean(card.suspended), mistakeCount: Number.isFinite(card.mistakeCount) ? card.mistakeCount : 0, nextReviewAt: Number.isFinite(card.nextReviewAt) ? card.nextReviewAt : Date.now(), intervalDays: valueNumber(card.intervalDays, 0), easeFactor: valueNumber(card.easeFactor, 2.5), repetitionCount: valueNumber(card.repetitionCount, 0) })),
     logs: Array.isArray(raw.logs) ? raw.logs.filter(log => log && typeof log.date === "string" && Number.isFinite(log.count)) : [],
@@ -111,7 +113,7 @@ function normalizeWebBackup(raw: Partial<VocabState>): VocabState {
     reviewLogs: Array.isArray(raw.reviewLogs) ? raw.reviewLogs.filter(log => log && typeof log.cardId === "string" && Number.isFinite(log.rating) && Number.isFinite(log.reviewedAt)) : [],
     ...(raw.androidArchive && typeof raw.androidArchive === "object" ? { androidArchive: raw.androidArchive } : {}),
     settings: { ...emptyState.settings, ...(raw.settings && typeof raw.settings === "object" ? raw.settings : {}),
-      theme: raw.settings?.theme === "dark" || raw.settings?.theme === "light" ? raw.settings.theme : "system",
+      theme: ["system", "light", "dark", "navy", "lightBlue", "iceBlue", "cornflower", "teal", "green", "pink", "red", "purple", "orange", "custom"].includes(raw.settings?.theme ?? "") ? raw.settings!.theme! : "lightBlue",
       gradientEnabled: false, customTextEnabled: false, backgroundBrightness: 1, backgroundOpacity: 1, onboardingDone: true },
   };
 }

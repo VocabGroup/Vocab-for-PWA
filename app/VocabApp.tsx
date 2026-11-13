@@ -19,6 +19,9 @@ import {generateCoveredArticle,missingArticleWords,articleHighlights,type Articl
 import { mergeCardCompletion } from "./card-completion";
 import { cardSpeechParts } from "./card-speech";
 import { FlipCard } from "./FlipCard";
+import { LiquidNavigation } from "./LiquidNavigation";
+import { CourseCoverDialog } from "./CourseCoverDialog";
+import { courseCoverColor } from "./course-covers";
 import { WordLookupScreen } from "./WordLookupScreen";
 import { DocumentScanner } from "./DocumentScanner";
 import { BrowserExperience } from "./BrowserExperience";
@@ -27,8 +30,8 @@ import { parseCardJson } from "./import-json";
 import { commitCardEdits, type EditorRow } from "./card-editing";
 import {
   MdAdd, MdArrowBack, MdAutoAwesome, MdCameraAlt, MdClose, MdExtension,
-  MdFolder, MdHome, MdImportExport, MdPlayArrow, MdSettings, MdStyle,
-  MdCheckCircle, MdSearch, MdDelete, MdEdit,
+  MdFolder, MdImportExport, MdPlayArrow, MdSettings, MdStyle,
+  MdCheckCircle, MdDelete, MdEdit,
   MdAttachFile, MdSend, MdStop,
   MdPause, MdUndo, MdDocumentScanner, MdDownload, MdCollectionsBookmark, MdPhotoLibrary,
 } from "react-icons/md";
@@ -105,7 +108,7 @@ export function VocabApp() {
     const root = document.documentElement;
     const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => {
-      root.dataset.theme = state.settings.theme === "system" ? (systemTheme.matches ? "dark" : "light") : state.settings.theme === "custom" ? "light" : state.settings.theme;
+      root.dataset.theme = state.settings.theme === "system" ? (systemTheme.matches ? "dark" : "lightBlue") : state.settings.theme === "custom" ? "light" : state.settings.theme;
       const themeColor = getComputedStyle(root).getPropertyValue("--bg").trim();
       document.querySelector('meta[name="theme-color"]')?.setAttribute("content", themeColor);
     };
@@ -227,7 +230,6 @@ export function VocabApp() {
       <header className="topbar">
         <h1>{tab === "home" ? "Vocab" : tab === "folders" ? "資料夾" : tab === "study" ? "學習" : "測驗"}</h1>
         <div className="header-actions">
-          <button className="icon-button" aria-label="搜尋單字" onClick={() => { setLookupCard(null); setSheet("lookup"); }}><Icon icon={MdSearch} /></button>
           <button className="icon-button ai-icon" aria-label="Vocab AI" onClick={() => setSheet("ai")}><Icon icon={MdAutoAwesome} /></button>
           <button className="icon-button" aria-label="設定" onClick={() => setSheet("settings")}><Icon icon={MdSettings} /></button>
         </div>
@@ -244,25 +246,24 @@ export function VocabApp() {
           onOpen={id => { setLookupCard(null); setSelectedDeckId(id); setSheet("manage"); }} onStudy={id => startForDeck(id, "study")}
           onQuiz={id => startForDeck(id, "quiz")} onAddCard={openCard}
           onUpdate={updated => setState(current => ({ ...current, decks: current.decks.map(deck => deck.id === updated.id ? updated : deck) }))}
-          onRenameCourse={(oldName, newName) => setState(current => ({ ...current, decks: current.decks.map(deck => deck.course === oldName ? { ...deck, course:newName } : deck) }))}
+          onRenameCourse={(oldName, newName) => setState(current => {
+            const courseCovers = { ...current.courseCovers };
+            if (courseCovers[oldName]) { courseCovers[newName] = courseCovers[oldName]; delete courseCovers[oldName]; }
+            return { ...current, courseCovers, decks: current.decks.map(deck => deck.course === oldName ? { ...deck, course:newName } : deck) };
+          })}
           onReorder={ids => setState(current => ({ ...current, decks: current.decks.map(deck => ({ ...deck, order: ids.indexOf(deck.id) })) }))}
           onDelete={id => setState(current => ({ ...current, decks: current.decks.filter(deck => deck.id !== id), cards: current.cards.filter(card => card.deckId !== id) }))}
         />}
+        {(tab === "study" || tab === "quiz") && <div className="practice-tabs" aria-label="練習方式"><button aria-pressed={tab === "study"} onClick={() => setTab("study")}>翻卡學習</button><button aria-pressed={tab === "quiz"} onClick={() => setTab("quiz")}>測驗</button></div>}
         {tab === "study" && <HubView kind="study" state={state}
           onStudy={id => startForDeck(id, "study")} onQuiz={id => startForDeck(id, "quiz")} onManage={id => { setLookupCard(null); setSelectedDeckId(id); setSheet("manage"); }} />}
         {tab === "quiz" && <HubView kind="quiz" state={state}
           onStudy={id => startForDeck(id, "study")} onQuiz={id => startForDeck(id, "quiz")} onManage={id => { setLookupCard(null); setSelectedDeckId(id); setSheet("manage"); }} />}
       </section>
 
-      <nav className="bottom-nav" aria-label="主要導覽">
-        {([
-          ["home", MdHome, "主畫面"], ["folders", MdFolder, "資料夾"], ["study", MdStyle, "學習"], ["quiz", MdExtension, "測驗"],
-        ] as const).map(([value, icon, label]) => (
-          <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>
-            <Icon icon={icon} /><span>{label}</span>
-          </button>
-        ))}
-      </nav>
+      <LiquidNavigation selected={sheet === "ai" ? "ai" : tab === "quiz" ? "study" : tab}
+        onSelect={value => { if (value === "ai") setSheet("ai"); else setTab(value); }}
+        onSearch={() => { setLookupCard(null); setSheet("lookup"); }}/>
       </div>
 
       {sheet === "deck" && <DeckSheet state={state} onClose={() => setSheet("none")} onSave={(name, course, description, color) => {
@@ -400,7 +401,8 @@ function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onU
   state: VocabState; onAdd: () => void; onOpen: (id: string) => void; onStudy: (id: string) => void; onQuiz: (id: string) => void;
   onAddCard: (id: string) => void; onUpdate: (deck: Deck) => void; onRenameCourse: (oldName: string, newName: string) => void; onReorder: (ids: string[]) => void; onDelete: (id: string) => void;
 }) {
-  const [course, setCourse] = useState("全部");
+  const [course, setCourse] = useState<string | null>(null);
+  const [coverCourse, setCoverCourse] = useState<string | null>(null);
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
   const [adding,setAdding]=useState(false);
   const [renamingCourse, setRenamingCourse] = useState<string | null>(null); const [courseName, setCourseName] = useState("");
@@ -408,9 +410,15 @@ function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onU
   const decks = state.decks.filter(deck => course === "全部" || deck.course === course).sort((a, b) => a.order - b.order);
   const shiftDeck = (id: string, offset: number) => { const visibleIds = decks.map(deck => deck.id); const index = visibleIds.indexOf(id); const target = Math.max(0, Math.min(visibleIds.length - 1, index + offset)); if (index < 0 || target === index) return; visibleIds.splice(index, 1); visibleIds.splice(target, 0, id); const scope = new Set(visibleIds); let cursor = 0; const ids = [...state.decks].sort((a, b) => a.order - b.order).map(deck => scope.has(deck.id) ? visibleIds[cursor++] : deck.id); onReorder(ids); };
   return <>
-    <FolderSharing state={state} course={course} onChange={onStateChange}/>
-    <div className="modern-filter"><p>選擇課程</p><div className="chips">{courses.map(value => <button key={value} className={course === value ? "selected" : ""} onClick={() => setCourse(value)}>{value === "全部" ? `全部資料夾 (${state.decks.length})` : `${value} (${state.decks.filter(deck => deck.course === value).length})`}</button>)}</div></div>
-    {course !== "全部" && <button className="secondary wide rename-course-button" onClick={() => { setRenamingCourse(course); setCourseName(course); }}><MdEdit size={18} />重新命名課程「{course}」</button>}
+    <FolderSharing state={state} course={course ?? "全部"} onChange={onStateChange}/>
+    {course === null ? <><div className="modern-section"><h2>我的課程</h2><button className="text-button" onClick={() => setCourse("全部")}>全部資料夾</button></div><div className="course-book-grid">{courses.filter(value => value !== "全部").map(value => {
+      const cover = state.courseCovers?.[value]; const scoped = state.decks.filter(deck => deck.course === value);
+      return <article key={value} className="course-book-item"><button className={`course-book ${cover?.startsWith("data:") ? "has-photo" : ""}`} style={{ backgroundColor: courseCoverColor(cover) }} onClick={() => setCourse(value)} aria-label={`開啟課程 ${value}`}>
+        {cover?.startsWith("data:") && <img src={cover} alt=""/>}<span className="course-book-spine"/><strong>{value}</strong><small>{scoped.length} 個資料夾 · {state.cards.filter(card => scoped.some(deck => deck.id === card.deckId)).length} 字</small>
+      </button><button className="course-cover-edit icon-button" aria-label={`自訂 ${value} 封面`} onClick={() => setCoverCourse(value)}><MdEdit size={18}/></button></article>;
+    })}</div>{!state.decks.length && <Empty title="建立你的第一個課程" text="新增資料夾時，可以一起建立課程。" action="新增資料夾" onAction={onAdd}/>}</> : <>
+    <div className="course-breadcrumb"><button className="icon-button" aria-label="返回課程" onClick={() => setCourse(null)}><MdArrowBack size={22}/></button><h2>{course === "全部" ? "全部資料夾" : course}</h2>{course !== "全部" && <button className="icon-button" aria-label="自訂課程封面" onClick={() => setCoverCourse(course)}><MdPhotoLibrary size={22}/></button>}</div>
+    {course !== "全部" && <button className="text-button rename-course-button" onClick={() => { setRenamingCourse(course); setCourseName(course); }}><MdEdit size={18} />重新命名課程</button>}
     {decks.length === 0 ? <Empty title="還沒有資料夾" text="點右下角新增第一個資料夾。" /> :
       <div className="modern-stack">{decks.map(deck => {
         const cards = state.cards.filter(card => card.deckId === deck.id);
@@ -419,7 +427,8 @@ function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onU
           due={cards.filter(card => card.nextReviewAt <= Date.now() && !card.mastered && !card.suspended).length} progress={cards.length ? mastered / cards.length : 0}
           onManage={() => onOpen(deck.id)} onLearn={() => onStudy(deck.id)} onQuiz={() => onQuiz(deck.id)} onEdit={() => setEditingDeck(deck)} onShare={()=>window.dispatchEvent(new CustomEvent("vocab-share-folder",{detail:deck.id}))}
           onDelete={() => { if (confirm(`刪除「${deck.name}」與裡面的字卡？`)) onDelete(deck.id); }} onMove={offset => shiftDeck(deck.id, offset)} />;
-      })}</div>}
+      })}</div>}</>}
+    {coverCourse !== null && <CourseCoverDialog key={coverCourse} course={coverCourse} cover={state.courseCovers?.[coverCourse]} onClose={() => setCoverCourse(null)} onSave={cover => { onStateChange(current => ({ ...current, courseCovers: { ...current.courseCovers, [coverCourse]: cover } })); setCoverCourse(null); }}/ >}
     <button className="fab" onClick={()=>setAdding(!adding)} aria-label="新增資料夾"><Icon icon={MdAdd} /></button>
     {adding&&<div className="folder-add-menu"><button className="secondary" onClick={()=>{setAdding(false);onAdd();}}>建立資料夾</button><button className="secondary" onClick={()=>{setAdding(false);window.dispatchEvent(new Event("vocab-import-folders"));}}>匯入分享檔案</button></div>}
     {editingDeck && <EditDeckDialog deck={editingDeck} courses={Array.from(new Set(state.decks.map(item => item.course)))} onClose={() => setEditingDeck(null)} onSave={deck => { onUpdate(deck); setEditingDeck(null); }} />}

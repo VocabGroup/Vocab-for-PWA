@@ -10,6 +10,16 @@ const { commitCardEdits } = loadSource("app/card-editing.ts");
 const { parseGoogleLookup, parseCambridgeLookup, lookupDictionary } = loadSource("app/dictionary-lookup.ts");
 const { lookupBrowserDictionary } = loadSource("app/browser-dictionary.ts");
 const {detectBrowserPlatform}=loadSource("app/browser-platform.ts");
+const { normalizeCourseCovers } = loadSource("app/course-covers.ts");
+
+test("blue palette and local course covers survive storage; external/executable cover URLs are rejected", () => {
+  const state = parseStoredState({ ...emptyState, settings: { ...emptyState.settings, onboardingDone: true, theme: "iceBlue" },
+    courseCovers: { "日常": "preset:ice", "照片": "data:image/jpeg;base64,/9j/AA==", "外部": "https://tracker.invalid/a.png", "SVG": "data:image/svg+xml;base64,PHN2Zz4=" } });
+  assert.equal(state.settings.theme, "iceBlue");
+  assert.deepEqual(state.courseCovers, { "日常": "preset:ice", "照片": "data:image/jpeg;base64,/9j/AA==" });
+  assert.deepEqual(normalizeCourseCovers({ bad: "data:image/png;base64," + "a".repeat(800_000) }), {});
+  assert.equal(parseStoredState(JSON.parse(JSON.stringify(state))).courseCovers["日常"], "preset:ice");
+});
 
 test("mobile installation routing distinguishes Safari, third-party browsers and iPad desktop UA",()=>{
   const safari="Mozilla/5.0 (iPhone; CPU iPhone OS 26_0) AppleWebKit/605.1.15 Version/26.0 Mobile Safari/604.1";
