@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import {ActionMenu} from "./ActionMenu";
 import type { IconType } from "react-icons";
 import { MdChevronRight, MdFolder, MdMoreVert, MdDragHandle } from "react-icons/md";
 
@@ -14,28 +15,12 @@ export function CollectionRow({ title, subtitle, count, due, progress, mode = "m
   onManage: () => void; onLearn: () => void; onQuiz: () => void; onEdit?: () => void; onDelete?: () => void;
   onMove?: (offset: number) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [anchor,setAnchor]=useState<DOMRect|null>(null);
   const root = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const start = useRef<number | null>(null);
   const [dragY, setDragY] = useState<number | null>(null);
-  const close = () => { setOpen(false); trigger.current?.focus(); };
-  useEffect(() => {
-    if (!open) return;
-    root.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
-    const keyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setOpen(false); trigger.current?.focus(); }
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-      const items = [...(root.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-      if (!items.length) return;
-      event.preventDefault();
-      const index = items.indexOf(document.activeElement as HTMLButtonElement);
-      items[event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
-    };
-    document.addEventListener("pointerdown", outside); document.addEventListener("keydown", keyboard);
-    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", keyboard); };
-  }, [open]);
+  const close=(restore=true)=>{setAnchor(null);if(restore)trigger.current?.focus({preventScroll:true});};
   const primary = mode === "learn" ? onLearn : mode === "quiz" ? onQuiz : onManage;
   const actions = [{ label: "管理", action: onManage }, { label: "學習", action: onLearn, disabled: count === 0 }, { label: "測驗", action: onQuiz, disabled: count === 0 },
     ...(onEdit ? [{ label: "編輯", action: onEdit }] : []), ...(onShare ? [{label:"分享資料夾",action:onShare}]:[]), ...(onDelete ? [{ label: "刪除", action: onDelete }] : [])];
@@ -50,7 +35,7 @@ export function CollectionRow({ title, subtitle, count, due, progress, mode = "m
       onPointerMove={event => { if (start.current !== null) setDragY(event.clientY - start.current); }}
       onPointerUp={event => { if (start.current !== null) { const distance = event.clientY - start.current; const height = (root.current?.offsetHeight ?? 90) + 12; if (Math.abs(distance) > height / 2) onMove(Math.round(distance / height)); } start.current = null; setDragY(null); }}
       onPointerCancel={() => { start.current = null; setDragY(null); }}><MdDragHandle size={22} aria-hidden="true" /></button>}
-    <button ref={trigger} className="collection-more" aria-label={`更多操作 ${title}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}><MdMoreVert size={24} aria-hidden="true" /></button>
-    {open && <div className="collection-menu" role="menu" aria-label={`${title}的操作`}>{actions.map(item => <button key={item.label} role="menuitem" disabled={item.disabled} className={item.label === "刪除" ? "danger-text" : ""} onClick={() => { close(); item.action(); }}>{item.label}</button>)}</div>}
+    <button ref={trigger} className="collection-more" aria-label={`更多操作 ${title}`} aria-haspopup="menu" aria-expanded={!!anchor} onClick={()=>anchor?close():setAnchor(trigger.current!.getBoundingClientRect())}><MdMoreVert size={24} aria-hidden="true" /></button>
+    {anchor&&<ActionMenu anchor={anchor} trigger={trigger} label={`${title}的操作`} actions={actions.map(item=>({...item,danger:item.label==="刪除"}))} onClose={close} className="collection-menu"/>}
   </article>;
 }

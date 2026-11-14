@@ -3,6 +3,7 @@ import "./globals.css";
 import "./parity.css";
 import "./liquid.css";
 import "./editorial.css";
+import "./viewport.css";
 import { PwaRegister } from "./PwaRegister";
 
 export const metadata: Metadata = {

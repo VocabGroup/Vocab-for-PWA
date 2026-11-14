@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { MdAdd, MdArrowBack, MdAutoAwesome, MdClose, MdHistory, MdSearch, MdVolumeUp } from "react-icons/md";
+import {useDialogFocus} from "./use-share-dialog-focus";
 import type { Card, VocabState } from "./types";
 import type { LookupEntry } from "./dictionary-lookup";
 import { speakText } from "./speech";
@@ -13,6 +14,7 @@ const historyKey = "vocab-word-search-history";
 export function WordLookupScreen({ state, onClose, onOpenCard, onAdd, onComplete }: { state: VocabState; onClose: () => void; onOpenCard: (card: Card) => void; onAdd: (entry: Entry, deckId: string) => void; onComplete: (entry: Entry) => Promise<Partial<Card>> }) {
   const [query, setQuery] = useState(""); const [searched, setSearched] = useState(""); const [history, setHistory] = useState<string[]>([]);
   const [result, setResult] = useState<Entry | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const [picker, setPicker] = useState(false); const [aiBusy, setAiBusy] = useState(false);
+  useDialogFocus(picker,()=>setPicker(false),".lookup-picker-dialog");
   const abort = useRef<AbortController | null>(null);
   const [source, setSource] = useState(state.settings.dictionarySource ?? "AUTO");
   useEffect(() => { try { const saved: unknown = JSON.parse(localStorage.getItem(historyKey) ?? "[]"); if (Array.isArray(saved)) Promise.resolve().then(() => setHistory(saved.filter((item): item is string => typeof item === "string").slice(0, 30))); } catch {} return () => abort.current?.abort(); }, []);
@@ -36,6 +38,6 @@ export function WordLookupScreen({ state, onClose, onOpenCard, onAdd, onComplete
       {!loading && !matches.length && !result && !error && <p>找不到符合的結果</p>}
       <div className="lookup-external"><p>來源暫時無法查詢時，也可以開啟原網站：</p><a href={`https://dictionary.cambridge.org/zht/詞典/英語-漢語-繁體/${encodeURIComponent(searched)}`} target="_blank" rel="noopener noreferrer">劍橋英漢辭典</a><a href={`https://translate.google.com/?sl=en&tl=zh-TW&text=${encodeURIComponent(searched)}&op=translate`} target="_blank" rel="noopener noreferrer">Google 翻譯</a></div>
     </>}</div>
-    {picker && result && <div className="nested-dialog-backdrop"><section className="nested-dialog"><header><h3>加入資料夾</h3><button className="icon-button" aria-label="取消" onClick={() => setPicker(false)}><MdClose /></button></header><div className="move-list">{state.decks.map(deck => <button key={deck.id} onClick={() => { onAdd(result, deck.id); setPicker(false); }}><MdAdd /><span>{deck.course} · {deck.name}</span></button>)}</div></section></div>}
+    {picker && result && <div className="nested-dialog-backdrop"><section className="nested-dialog lookup-picker-dialog" role="dialog" aria-modal="true" aria-label="加入資料夾"><header><h3>加入資料夾</h3><button className="icon-button" aria-label="取消" onClick={() => setPicker(false)}><MdClose /></button></header><div className="move-list">{state.decks.map(deck => <button key={deck.id} onClick={() => { onAdd(result, deck.id); setPicker(false); }}><MdAdd /><span>{deck.course} · {deck.name}</span></button>)}</div></section></div>}
   </section></div>;
 }

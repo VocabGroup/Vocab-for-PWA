@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Card, VocabState } from "./types";
 import { CardActionMenu } from "./CardActionMenu";
+import {useDialogFocus} from "./use-share-dialog-focus";
 import { speakText } from "./speech";
 import { MaterialContext, PageActions } from "./EditorialUi";
 import { MdAdd, MdArrowBack, MdCheck, MdChevronRight, MdClose, MdDelete, MdEditNote, MdVolumeUp, MdDriveFileMove, MdFolder, MdSearch } from "react-icons/md";
@@ -17,6 +18,7 @@ export function ManageCardsSheet({ state, deckId, onEdit, onClose, onAdd, onImpo
   const [selected, setSelected] = useState<Set<string>>(new Set()); const [deleting, setDeleting] = useState<Card | null>(null);
   const [moveOpen, setMoveOpen] = useState(false); 
   const [addModeOpen, setAddModeOpen] = useState(false);
+  useDialogFocus(!!deleting||moveOpen||addModeOpen,()=>{setDeleting(null);setMoveOpen(false);setAddModeOpen(false);},'.manage-sheet .nested-dialog');
   const [multiMode, setMultiMode] = useState(false);
   const [scopeDeck, setScopeDeck] = useState(deckId); const [course, setCourse] = useState(state.decks.find(item => item.id === deckId)?.course ?? "__all__");
   const [now] = useState(() => Date.now());
@@ -57,11 +59,11 @@ export function ManageCardsSheet({ state, deckId, onEdit, onClose, onAdd, onImpo
       {!multiMode&&<PageActions><button className="secondary" onClick={()=>setAddModeOpen(true)}><MdAdd size={22}/>新增單字卡</button><button className="primary" disabled={!deckCards.length} onClick={()=>onStudy(studyScope)}>開始學習</button><button className="icon-button" aria-label="測驗" disabled={!deckCards.length} onClick={()=>onQuiz(studyScope)}><MdEditNote size={24}/></button></PageActions>}
       {deleting && <div className="nested-dialog-backdrop"><section className="nested-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-card-title"><h3 id="delete-card-title">刪除單字卡？</h3><p>確定要刪除「{deleting.word}」嗎？這個動作無法復原。</p><div className="dialog-actions"><button className="secondary" onClick={() => setDeleting(null)}>取消</button><button className="danger-button" onClick={() => { onDelete([deleting.id]); setDeleting(null); }}>刪除</button></div></section></div>}
       {moveOpen && <MoveDialog state={state} currentDeckId={deckId} onClose={() => setMoveOpen(false)} onMove={targetId => { onMove([...selected], targetId); setSelected(new Set()); setMoveOpen(false); }} />}
-      {addModeOpen && <div className="nested-dialog-backdrop"><section className="nested-dialog add-mode-dialog"><header><h3>新增單字卡</h3><button className="icon-button" aria-label="關閉" onClick={() => setAddModeOpen(false)}><MdClose size={22} /></button></header><div className="add-mode-list"><button onClick={onAdd}><strong>手動輸入單字</strong><small>批次輸入或 AI 補齊</small></button><button onClick={onImport}><strong>匯入線上單字集</strong><small>分享網址、搜尋或匯出檔案</small></button><button onClick={onScan}><strong>掃描或匯入文件</strong><small>拍照、相片或 PDF</small></button></div></section></div>}
+      {addModeOpen && <div className="nested-dialog-backdrop"><section className="nested-dialog add-mode-dialog" role="dialog" aria-modal="true" aria-label="新增單字卡方式"><header><h3>新增單字卡</h3><button className="icon-button" aria-label="關閉" onClick={() => setAddModeOpen(false)}><MdClose size={22} /></button></header><div className="add-mode-list"><button onClick={onAdd}><strong>手動輸入單字</strong><small>批次輸入或 AI 補齊</small></button><button onClick={onImport}><strong>匯入線上單字集</strong><small>分享網址、搜尋或匯出檔案</small></button><button onClick={onScan}><strong>掃描或匯入文件</strong><small>拍照、相片或 PDF</small></button></div></section></div>}
     </section>
   </div>;
 }
 
 function MoveDialog({ state, currentDeckId, onClose, onMove }: { state: VocabState; currentDeckId: string; onClose: () => void; onMove: (deckId: string) => void }) {
-  return <div className="nested-dialog-backdrop"><section className="nested-dialog"><header><h3>移動到其他資料夾</h3><button className="icon-button" aria-label="關閉" onClick={onClose}><MdClose size={22} /></button></header><div className="move-list">{state.decks.filter(deck => deck.id !== currentDeckId).map(deck => <button key={deck.id} onClick={() => onMove(deck.id)}><span className="deck-dot" style={{ background: deck.color }} /><span><strong>{deck.name}</strong><small>{deck.course} · {state.cards.filter(card => card.deckId === deck.id).length} 張</small></span><MdChevronRight size={22} /></button>)}{state.decks.length <= 1 && <p>目前沒有其他資料夾，請先新增資料夾。</p>}</div></section></div>;
+  return <div className="nested-dialog-backdrop"><section className="nested-dialog" role="dialog" aria-modal="true" aria-label="移動到其他資料夾"><header><h3>移動到其他資料夾</h3><button className="icon-button" aria-label="關閉" onClick={onClose}><MdClose size={22} /></button></header><div className="move-list">{state.decks.filter(deck => deck.id !== currentDeckId).map(deck => <button key={deck.id} onClick={() => onMove(deck.id)}><span className="deck-dot" style={{ background: deck.color }} /><span><strong>{deck.name}</strong><small>{deck.course} · {state.cards.filter(card => card.deckId === deck.id).length} 張</small></span><MdChevronRight size={22} /></button>)}{state.decks.length <= 1 && <p>目前沒有其他資料夾，請先新增資料夾。</p>}</div></section></div>;
 }

@@ -1,11 +1,11 @@
 "use client";
 import {useEffect,useEffectEvent} from "react";
 
-export function useShareDialogFocus(active:boolean,onClose:()=>void){
+export function useShareDialogFocus(active:boolean,onClose:()=>void,selector='.share-dialog[role="dialog"]'){
   const close=useEffectEvent(onClose);
   useEffect(()=>{
     if(!active)return;
-    const root=[...document.querySelectorAll<HTMLElement>('.share-dialog[role="dialog"]')].at(-1);
+    const root=[...document.querySelectorAll<HTMLElement>(selector)].at(-1);
     if(!root)return;
     const previous=document.activeElement as HTMLElement|null;
     const controls=()=>[...root.querySelectorAll<HTMLElement>('button:not(:disabled),input:not([hidden]):not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary')].filter(element=>element.getClientRects().length>0);
@@ -20,5 +20,6 @@ export function useShareDialogFocus(active:boolean,onClose:()=>void){
     };
     document.addEventListener("keydown",key);
     return()=>{document.removeEventListener("keydown",key);previous?.focus({preventScroll:true});};
-  },[active]);
+  },[active,selector]);
 }
+export {useShareDialogFocus as useDialogFocus};

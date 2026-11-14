@@ -22,6 +22,7 @@ import { FlipCard } from "./FlipCard";
 import { LiquidNavigation } from "./LiquidNavigation";
 import { CourseCoverDialog } from "./CourseCoverDialog";
 import { courseCoverColor } from "./course-covers";
+import {useDialogFocus} from "./use-share-dialog-focus";
 import { PageHeading, MaterialContext, WorkflowSteps } from "./EditorialUi";
 import { QUIZ_DRAFT_KEY, parseQuizDraft } from "./quiz-draft";
 import { WordLookupScreen } from "./WordLookupScreen";
@@ -410,8 +411,8 @@ function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onU
   const [course, setCourse] = useState<string | null>(null);
   const [coverCourse, setCoverCourse] = useState<string | null>(null);
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
-  const [adding,setAdding]=useState(false);
   const [renamingCourse, setRenamingCourse] = useState<string | null>(null); const [courseName, setCourseName] = useState("");
+  useDialogFocus(!!renamingCourse,()=>setRenamingCourse(null),".course-rename-dialog");
   const courses = ["全部", ...Array.from(new Set(state.decks.map(deck => deck.course)))];
   const decks = state.decks.filter(deck => course === "全部" || deck.course === course).sort((a, b) => a.order - b.order);
   const shiftDeck = (id: string, offset: number) => { const visibleIds = decks.map(deck => deck.id); const index = visibleIds.indexOf(id); const target = Math.max(0, Math.min(visibleIds.length - 1, index + offset)); if (index < 0 || target === index) return; visibleIds.splice(index, 1); visibleIds.splice(target, 0, id); const scope = new Set(visibleIds); let cursor = 0; const ids = [...state.decks].sort((a, b) => a.order - b.order).map(deck => scope.has(deck.id) ? visibleIds[cursor++] : deck.id); onReorder(ids); };
@@ -435,16 +436,16 @@ function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onU
           onDelete={() => { if (confirm(`刪除「${deck.name}」與裡面的字卡？`)) onDelete(deck.id); }} onMove={offset => shiftDeck(deck.id, offset)} />;
       })}</div>}</>}
     {coverCourse !== null && <CourseCoverDialog key={coverCourse} course={coverCourse} cover={state.courseCovers?.[coverCourse]} onClose={() => setCoverCourse(null)} onSave={cover => { onStateChange(current => ({ ...current, courseCovers: { ...current.courseCovers, [coverCourse]: cover } })); setCoverCourse(null); }}/ >}
-    <button className="fab" onClick={()=>setAdding(!adding)} aria-label="新增資料夾"><Icon icon={MdAdd} /></button>
-    {adding&&<div className="folder-add-menu"><button className="secondary" onClick={()=>{setAdding(false);onAdd();}}>建立資料夾</button><button className="secondary" onClick={()=>{setAdding(false);window.dispatchEvent(new Event("vocab-import-folders"));}}>匯入分享檔案</button></div>}
+    <div className="folder-create-actions"><button className="secondary" onClick={onAdd} aria-label="新增資料夾"><Icon icon={MdAdd}/>建立資料夾</button><button className="secondary" onClick={()=>window.dispatchEvent(new Event("vocab-import-folders"))}>匯入分享檔案</button></div>
     {editingDeck && <EditDeckDialog deck={editingDeck} courses={Array.from(new Set(state.decks.map(item => item.course)))} onClose={() => setEditingDeck(null)} onSave={deck => { onUpdate(deck); setEditingDeck(null); }} />}
-    {renamingCourse && <div className="nested-dialog-backdrop"><section className="nested-dialog"><header><h3>重新命名課程</h3><button className="icon-button" aria-label="關閉" onClick={() => setRenamingCourse(null)}><MdClose size={22} /></button></header><div className="form"><label><span>課程名稱</span><input autoFocus value={courseName} onChange={event => setCourseName(event.target.value)} /></label><div className="dialog-form-actions"><button className="secondary" onClick={() => setRenamingCourse(null)}>取消</button><button className="primary" disabled={!courseName.trim() || courseName.trim() === renamingCourse || state.decks.some(deck => deck.course === courseName.trim())} onClick={() => { const next=courseName.trim(); onRenameCourse(renamingCourse,next); setCourse(next); setRenamingCourse(null); }}>儲存</button></div></div></section></div>}
+    {renamingCourse && <div className="nested-dialog-backdrop"><section className="nested-dialog course-rename-dialog" role="dialog" aria-modal="true" aria-label="重新命名課程"><header><h3>重新命名課程</h3><button className="icon-button" aria-label="關閉" onClick={() => setRenamingCourse(null)}><MdClose size={22} /></button></header><div className="form"><label><span>課程名稱</span><input autoFocus value={courseName} onChange={event => setCourseName(event.target.value)} /></label><div className="dialog-form-actions"><button className="secondary" onClick={() => setRenamingCourse(null)}>取消</button><button className="primary" disabled={!courseName.trim() || courseName.trim() === renamingCourse || state.decks.some(deck => deck.course === courseName.trim())} onClick={() => { const next=courseName.trim(); onRenameCourse(renamingCourse,next); setCourse(next); setRenamingCourse(null); }}>儲存</button></div></div></section></div>}
   </>;
 }
 
 function EditDeckDialog({ deck, courses, onClose, onSave }: { deck: Deck; courses: string[]; onClose: () => void; onSave: (deck: Deck) => void }) {
   const [draft, setDraft] = useState(deck); const colors = ["#426B63","#5E7180","#8A6657","#55749A","#6F7D52","#A7793D"];
-  return <div className="nested-dialog-backdrop"><section className="nested-dialog"><header><h3>編輯資料夾</h3><button className="icon-button" aria-label="關閉" onClick={onClose}><MdClose size={22} /></button></header><div className="form folder-form">
+  useDialogFocus(true,onClose,".edit-deck-dialog");
+  return <div className="nested-dialog-backdrop"><section className="nested-dialog edit-deck-dialog" role="dialog" aria-modal="true" aria-label="編輯資料夾"><header><h3>編輯資料夾</h3><button className="icon-button" aria-label="關閉" onClick={onClose}><MdClose size={22} /></button></header><div className="form folder-form">
     <label><span>資料夾名稱 *</span><input value={draft.name} onChange={event => setDraft(current => ({ ...current, name:event.target.value }))} /></label>
     <label><span>課程</span><select value={draft.course} onChange={event => setDraft(current => ({ ...current, course:event.target.value }))}>{Array.from(new Set([draft.course,...courses])).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
     <label><span>說明（選填）</span><input value={draft.description || ""} onChange={event => setDraft(current => ({ ...current, description:event.target.value }))} /></label>
@@ -480,6 +481,7 @@ function calculateStreak(state: VocabState) {
 }
 
 function SheetFrame({ title, subtitle, onClose, children, wide = false, action, className = "" }: { className?: string; title: string; subtitle?: string; onClose: () => void; children: React.ReactNode; wide?: boolean; action?: React.ReactNode }) {
+  useDialogFocus(!wide,onClose,'.sheet[role="dialog"]');
   return <div className={`sheet-backdrop ${wide ? "page-backdrop" : ""}`} onMouseDown={event => !wide && event.target === event.currentTarget && onClose()}>
     <section className={`sheet ${wide ? "sheet-wide" : ""} ${className}`} role={wide ? "main" : "dialog"} aria-modal={wide ? undefined : true}>
       {!wide && <div className="android-dialog-handle" />}
@@ -509,6 +511,7 @@ function CardSheet({ state, deck, cards, initialCardId, onCommit, onClose, onSav
   const existing = editing ? cards.filter(card => card.deckId === deck?.id).sort((a,b) => a.order-b.order) : [];
   const [originalIds, setOriginalIds] = useState(() => existing.map(card => card.id));
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  useDialogFocus(!!pendingDelete,()=>setPendingDelete(null),".editor-delete-dialog");
   const focused = useRef<HTMLDivElement>(null);
   useEffect(() => { if (!editing) return; const timer = setTimeout(() => focused.current?.scrollIntoView({ block:"start", behavior:"instant" }), 100); return () => clearTimeout(timer); }, [editing, initialCardId]);
   const makeRow = (): DraftRow => ({ ...blankCard, rowId:makeId(), aiBusy:false });
@@ -556,7 +559,7 @@ function CardSheet({ state, deck, cards, initialCardId, onCommit, onClose, onSav
       {aiStatus && <p className="hint ai-fill-status">{aiStatus}</p>}
       <div className="card-save-footer"><button className="primary wide" disabled={!canSave || anyBusy}>{editing ? "儲存全部變更" : "儲存全部並繼續新增"}</button></div><button type="button" className="fab add-card-fab" aria-label="新增單字" onClick={() => insertAt(drafts.length)}><MdAdd size={24} /></button>
     </form>
-    {pendingDelete && <div className="nested-dialog-backdrop"><section className="nested-dialog" role="dialog" aria-modal="true" aria-labelledby="editor-delete-title"><h3 id="editor-delete-title">從編輯清單刪除單字卡？</h3><p>按下儲存全部變更後才會真正刪除，其他單字的學習進度不會受影響。</p><div className="dialog-actions"><button className="secondary" onClick={() => setPendingDelete(null)}>取消</button><button className="danger-button" onClick={() => { removeRow(pendingDelete); setPendingDelete(null); }}>從清單移除</button></div></section></div>}
+    {pendingDelete && <div className="nested-dialog-backdrop"><section className="nested-dialog editor-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="editor-delete-title"><h3 id="editor-delete-title">從編輯清單刪除單字卡？</h3><p>按下儲存全部變更後才會真正刪除，其他單字的學習進度不會受影響。</p><div className="dialog-actions"><button className="secondary" onClick={() => setPendingDelete(null)}>取消</button><button className="danger-button" onClick={() => { removeRow(pendingDelete); setPendingDelete(null); }}>從清單移除</button></div></section></div>}
   </SheetFrame>;
 }
 
