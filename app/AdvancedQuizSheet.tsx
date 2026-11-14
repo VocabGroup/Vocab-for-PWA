@@ -4,6 +4,7 @@ import { useCallback,useEffect, useMemo, useRef,useState } from "react";
 import {QUIZ_DRAFT_KEY,parseQuizDraft,quizFingerprint,type QuizDraft,type MatchProgress} from "./quiz-draft";
 import type { Card, QuizRecord, VocabState } from "./types";
 import { MdArrowBack, MdCheckCircle, MdVolumeUp } from "react-icons/md";
+import { PageHeading, MaterialContext } from "./EditorialUi";
 
 export type QuizMode =
   | "chineseToEnglish" | "englishToChinese" | "chineseTypeEnglish"
@@ -204,16 +205,18 @@ export function AdvancedQuizSheet({ state, initialDeckId, speechRate, onClose, o
   return <Frame title={phase === "choose" ? "選擇測驗題型" : phase === "done" ? "測驗完成" : quizModes.find(item => item.id === mode)?.label || "測驗"} subtitle={phase === "play" ? `${index + 1} / ${questions.length}` : undefined} onClose={onClose}>
     {saveError&&<p role="alert">{saveError}</p>}
     {phase === "choose" && <div className="quiz-picker">
+      <PageHeading title="選一種練習方式" subtitle="先選教材與題數；未完成進度可以接續，不會默默覆蓋。"/>
       {draft&&<section><h3>有未完成的測驗</h3><p>上次做到第 {draft.mode==="match"?(draft.match?.correct||0)+1:draft.index+1}／{draft.ids.length} 題</p><button className="primary" onClick={()=>{const valid=parseQuizDraft(JSON.stringify(draft),state.cards);if(!valid){setSaveError("教材已變更，請重新開始");return;}resumeSeed.current=valid;completed.current=false;setChoicePool(scopeCards(state,valid.deckId));setDeckId(valid.deckId);setMode(valid.mode as QuizMode);setQuestions(valid.ids.map(id=>state.cards.find(c=>c.id===id)!));setIndex(valid.index);setScore(valid.score);setWrong(new Set(valid.wrong));setSelected(valid.selected);setTyped(valid.typed);setResult(valid.result);setOrdered(valid.ordered);setAvailable(valid.available);setQuestionCount(String(valid.count));setMatchProgress(valid.match);setRestoredOptions({index:valid.index,values:valid.options});setPhase("play");}}>接續上次</button><button className="secondary" onClick={()=>{if(confirm("清除未完成進度並重新設定測驗？")){localStorage.removeItem(QUIZ_DRAFT_KEY);setDraft(null);}}}>重新開始</button></section>}
       <label className="select-label"><span>自訂題數（1–1000）</span><input type="number" min={1} max={1000} value={questionCount} onChange={e=>setQuestionCount(e.target.value)}/></label><small>實際題數不超過符合題型的字卡數。新測驗會取代上次未完成進度。</small>
       <label className="select-label"><span>選擇資料夾</span><select value={deckId} onChange={event => { setDeckId(event.target.value); setMode(null); }}><option value="__all__">全部資料夾（{state.cards.length}）</option>{Array.from(new Set(state.decks.map(deck => deck.course))).map(course => <option key={course} value={`__course__${course}`}>{course}－全部（{scopeCards(state, `__course__${course}`).length}）</option>)}{state.decks.map(deck => <option key={deck.id} value={deck.id}>{deck.name}（{state.cards.filter(card => card.deckId === deck.id).length}）</option>)}</select></label>
-      <div className="mode-grid">{quizModes.map(item => {
+      {([['理解與選擇',['chineseToEnglish','englishToChinese','clozeChoice','partOfSpeech','synonym']],['聽力',['listeningChoice','listeningSpelling']],['拼寫與應用',['chineseTypeEnglish','clozeTyping','sentenceOrder','match']]] as const).map(([group,ids])=><section className="quiz-mode-group" key={group}><h3>{group}</h3><div className="mode-grid">{quizModes.filter(item=>(ids as readonly string[]).includes(item.id)).map(item => {
         const count = eligible(item.id, deckCards).length;
         return <button key={item.id} disabled={!count||!Number.isInteger(Number(questionCount))||Number(questionCount)<1||Number(questionCount)>1000||(item.id==="match"&&Number(questionCount)<2)} onClick={() => begin(item.id)}><strong>{item.label} · {count}</strong><small>{count ? item.note : "目前資料不足"}</small></button>;
-      })}</div>
+      })}</div></section>)}
     </div>}
 
     {phase === "play" && card && mode && <div className="quiz-stage advanced-quiz">
+      <MaterialContext course={state.decks.find(deck=>deck.id===card.deckId)?.course} folder={state.decks.find(deck=>deck.id===card.deckId)?.name}/><div className="quiz-question-progress"><span>第 {index+1} / {questions.length} 題</span><progress max={questions.length} value={index+1}/></div>
       <Question card={card} mode={mode} speechRate={speechRate} />
       {mode === "sentenceOrder" ? <>
         <div className="sentence-answer">{ordered.length ? ordered.map((token, tokenIndex) => <button key={`${token}-${tokenIndex}`} onClick={() => { setOrdered(values => values.filter((_, i) => i !== tokenIndex)); setAvailable(values => [...values, token]); }}>{token}</button>) : <span>依序點選下方單字組成句子</span>}</div>

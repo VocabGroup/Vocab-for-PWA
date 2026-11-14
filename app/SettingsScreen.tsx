@@ -2,7 +2,8 @@
 import {version as APP_VERSION} from "../package.json";
 
 import { ChangeEvent, ReactNode, useEffect, useRef, useState } from "react";
-import { MdAdd, MdArrowBack, MdDelete, MdDeleteForever, MdEdit, MdOpenInNew, MdRemove, MdRestore, MdVolumeUp } from "react-icons/md";
+import { MdAdd, MdArrowBack, MdDelete, MdDeleteForever, MdEdit, MdOpenInNew, MdRemove, MdRestore, MdVolumeUp, MdPalette, MdStyle, MdAutoAwesome, MdDocumentScanner, MdSearch, MdSystemUpdateAlt, MdStorage } from "react-icons/md";
+import { PageHeading } from "./EditorialUi";
 import type { AppSettings, VocabState } from "./types";
 import { downloadAndroidBackup, normalizeBackup } from "./storage";
 import { DEFAULT_IMAGE_PROMPT, DEFAULT_WORD_PROMPT } from "./prompts";
@@ -16,6 +17,7 @@ export const SETTINGS_PAGES = [
   ["掃描與文件", "教材辨識與匯入"], ["單字查詢", "辭典與翻譯來源"], ["發音與提醒", "朗讀、自動播放與通知"],
   ["更新", "版本與下載"], ["資料", "備份、匯出與還原"],
 ] as const;
+const SETTINGS_ICONS=[MdPalette,MdStyle,MdAutoAwesome,MdDocumentScanner,MdSearch,MdVolumeUp,MdSystemUpdateAlt,MdStorage];
 
 function Section({ title, children }: { title: string; children: ReactNode }) { return <section className="android-settings-section"><h3>{title}</h3>{children}</section>; }
 function Toggle({ label, value, onChange, disabled = false }: { label: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean }) { return <div className="android-setting-row"><span>{label}</span><AndroidSwitch label={label} checked={value} onChange={onChange} disabled={disabled} /></div>; }
@@ -73,7 +75,7 @@ export function SettingsScreen({ state, updateSettings, onClose, onBackup, onRes
   return <div className="page-backdrop sheet-backdrop"><section className="sheet sheet-wide android-settings" role="main">
     <header><button className="icon-button" aria-label="返回" onClick={back}><MdArrowBack size={24} /></button><h2>{page}</h2></header>
     <div className="android-settings-body" key={page}>
-      {page === "設定" && SETTINGS_PAGES.map(([title, subtitle]) => <button className="android-settings-entry" aria-label={title} aria-describedby={`settings-sub-${title}`} key={title} onClick={() => { history.pushState({ ...history.state, vocabPage: "settings", vocabSettingsPage: title }, ""); setPage(title); setStatus(""); }}><span><strong>{title}</strong><small id={`settings-sub-${title}`}>{subtitle}</small></span><span aria-hidden="true">›</span></button>)}
+      {page === "設定" && <><PageHeading title="依照你的方式學習" subtitle="外觀、AI、朗讀與資料，集中在這裡。"/>{SETTINGS_PAGES.map(([title, subtitle],index) => {const Glyph=SETTINGS_ICONS[index];return <button className="android-settings-entry" aria-label={title} aria-describedby={`settings-sub-${title}`} key={title} onClick={() => { history.pushState({ ...history.state, vocabPage: "settings", vocabSettingsPage: title }, ""); setPage(title); setStatus(""); }}><Glyph className="settings-entry-icon" aria-hidden="true"/><span><strong>{title}</strong><small id={`settings-sub-${title}`}>{subtitle}</small></span><span aria-hidden="true">›</span></button>;})}</>}
       {page === "外觀" && <Section title="主題"><div className="android-theme-options">{([["lightBlue", "晴空藍"], ["iceBlue", "冰川藍"], ["cornflower", "矢車菊藍"], ["light", "亮色"], ["dark", "暗色"], ["system", "系統"]] as const).map(([value, label]) => <button className={`android-filter-chip theme-swatch ${settings.theme === value ? "selected" : ""}`} data-palette={value} aria-pressed={settings.theme === value} key={value} onClick={() => updateSettings({ theme: value, gradientEnabled: false, customTextEnabled: false, backgroundBrightness: 1, backgroundOpacity: 1 })}>{label}</button>)}</div><p>三種淺藍可直接切換；畫面與文字顏色會一起調整。</p></Section>}
       {page === "學習" && <Section title="學習">{number("每日學習目標", "dailyGoal", 5, 100, 5, " 張")}{number("每日新卡上限", "dailyNewCardLimit", 1, 100, 5)}{number("每日複習上限", "dailyReviewLimit", 10, 500, 10)}{toggle("測驗錯題加入複習", "gameMistakesToReview")}</Section>}
       {page === "外觀" && <WebDisplaySettings settings={settings} updateSettings={updateSettings}/>}

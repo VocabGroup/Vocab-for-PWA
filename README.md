@@ -1,8 +1,8 @@
 # Vocab PWA
 
-Vocab for PWA **3.3.1**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
+Vocab for PWA **3.5.0**：iPhone／iPad／Android 可安裝的網頁版，目標逐頁對齊 Vocab for Android。採 MIT 授權；Scanic 的 MIT 聲明位於 `public/licenses/scanic.txt`。
 
-3.3.0 新增 7 天到期的教材網址／QR 分享、分享預覽匯入，以及單字測驗題數與未完成進度接續。雲端分享需 Production KV／Secret，詳見 [SHARING_SETUP.md](SHARING_SETUP.md)。網址內容持有人皆可讀取；個人筆記預設不分享。Android 新教材庫分組與四入口不是本版 PWA 已完成的 1:1 移植。
+3.5.0 將紙面內容、淺藍配色、課程封面、玻璃導覽與固定主要操作區延伸至現有頁面。分享網址先預覽教材，再選擇存放位置與確認匯入；Android 可明確開啟 3.5.0 以上 App 接收，iPhone 則區分目前瀏覽器與主畫面版的儲存位置。支援重複接收提醒、JSON 匯入與撤回。網址／QR 共用同一份教材，固定七天到期。雲端分享需 Production KV／Secret，詳見 [SHARING_SETUP.md](SHARING_SETUP.md)。網址內容持有人皆可讀取；個人筆記預設不分享。
 
 3.2.0 新增與 Android 互通的資料夾分享／匯入、多圖辨識與部分重試、深色多頁掃描器、主單字辨識範圍、AI 串流與鍵盤定位、單字草稿恢復，以及全資料夾文章覆蓋檢查。分享檔不帶學習進度，個人筆記預設排除；AI 操作仍需使用者確認。
 

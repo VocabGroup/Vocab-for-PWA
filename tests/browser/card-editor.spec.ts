@@ -14,7 +14,8 @@ test.beforeEach(async ({context}) => {
 
 test("menu and card click open shared multi-card editor at selected word; save preserves progress",async ({page},info)=>{
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button",{name:"資料夾",exact:true}).click();
+  await page.getByRole("navigation",{name:"主要導覽"}).getByRole("button",{name:"教材",exact:true}).click();
+  await page.getByRole("button",{name:"開啟課程 英文",exact:true}).click();
   await page.getByRole("article",{name:"第一課",exact:true}).locator(".collection-main").click();
   await page.getByRole("button",{name:"單字操作 word13",exact:true}).click();
   await expect(page.getByRole("menu")).toBeVisible();

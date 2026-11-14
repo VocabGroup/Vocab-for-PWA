@@ -22,6 +22,8 @@ import { FlipCard } from "./FlipCard";
 import { LiquidNavigation } from "./LiquidNavigation";
 import { CourseCoverDialog } from "./CourseCoverDialog";
 import { courseCoverColor } from "./course-covers";
+import { PageHeading, MaterialContext, WorkflowSteps } from "./EditorialUi";
+import { QUIZ_DRAFT_KEY, parseQuizDraft } from "./quiz-draft";
 import { WordLookupScreen } from "./WordLookupScreen";
 import { DocumentScanner } from "./DocumentScanner";
 import { BrowserExperience } from "./BrowserExperience";
@@ -30,8 +32,8 @@ import { parseCardJson } from "./import-json";
 import { commitCardEdits, type EditorRow } from "./card-editing";
 import {
   MdAdd, MdArrowBack, MdAutoAwesome, MdCameraAlt, MdClose, MdExtension,
-  MdFolder, MdImportExport, MdPlayArrow, MdSettings, MdStyle,
-  MdCheckCircle, MdDelete, MdEdit,
+  MdFolder, MdShare, MdHome, MdImportExport, MdPlayArrow, MdSettings, MdStyle,
+  MdCheckCircle, MdSearch, MdDelete, MdEdit,
   MdAttachFile, MdSend, MdStop,
   MdPause, MdUndo, MdDocumentScanner, MdDownload, MdCollectionsBookmark, MdPhotoLibrary,
 } from "react-icons/md";
@@ -227,6 +229,7 @@ export function VocabApp() {
       {lastImport&&<div className="import-undo"><button className="secondary" onClick={()=>{if(state.cards.some(c=>lastImport.decks.includes(c.deckId)&&!lastImport.cards.includes(c.id))){setToast("匯入資料夾已有其他字卡，請先移出再撤回");return;}if(!confirm("撤回上次單字匯入？該批新字卡及後續修改會移除，原有字卡保留。"))return;setState(current=>({...current,cards:current.cards.filter(c=>!lastImport.cards.includes(c.id)),decks:current.decks.filter(d=>!lastImport.decks.includes(d.id)),reviewLogs:current.reviewLogs?.filter(log=>!lastImport.cards.includes(log.cardId))}));setLastImport(null);}}>撤回上次單字匯入</button></div>}
       {storageError && <div className="storage-error" role="alert"><p>{storageError}</p><button className="secondary" onClick={() => downloadBackup(state)}>下載備份</button></div>}
       <div className="app-content" aria-hidden={sheet !== "none"} inert={sheet !== "none"}>
+      <aside className="desktop-sidebar" aria-label="桌面工作區"><strong>Vocab</strong><small>你的英文學習空間</small><nav aria-label="桌面導覽">{([["home",MdHome,"今天"],["folders",MdFolder,"教材"],["study",MdStyle,"翻卡學習"],["quiz",MdExtension,"測驗"]] as const).map(([value,Glyph,label])=><button key={value} className={tab===value?"active":""} onClick={()=>setTab(value)}><Glyph size={21}/>{label}</button>)}<button onClick={()=>setSheet("ai")}><MdAutoAwesome size={21}/>AI 助理</button><button onClick={()=>setSheet("lookup")}><MdSearch size={21}/>搜尋單字</button><button onClick={()=>setSheet("settings")}><MdSettings size={21}/>設定</button></nav><button className="primary" onClick={()=>openCard()}><MdAdd size={21}/>新增教材</button></aside>
       <header className="topbar">
         <h1>{tab === "home" ? "Vocab" : tab === "folders" ? "資料夾" : tab === "study" ? "學習" : "測驗"}</h1>
         <div className="header-actions">
@@ -356,6 +359,9 @@ function HomeView({ state, todayStudied, dueCount, onAddCard, onScan, onImport, 
   onAddCard: () => void; onScan: () => void; onImport: () => void; onStudy: () => void; onQuiz: () => void; onAddFolder: () => void; onOpen: (id: string) => void;
 }) {
   const [course, setCourse] = useState<string | null>(null);
+  const [resumeCount, setResumeCount] = useState<number | null>(null);
+  useEffect(() => { try { const raw=localStorage.getItem(QUIZ_DRAFT_KEY); const draft=raw?parseQuizDraft(raw,state.cards):null; queueMicrotask(()=>setResumeCount(draft?draft.index:null)); } catch { /* No compatible session. */ } }, [state.cards]);
+  const featureWord = [...state.cards].filter(card=>!card.suspended).sort((a,b)=>a.nextReviewAt-b.nextReviewAt)[0];
   const goalProgress = Math.min(100, Math.round(todayStudied / state.settings.dailyGoal * 100));
   const streak = calculateStreak(state);
   const recentDays = Array.from({ length: 7 }, (_, offset) => {
@@ -368,31 +374,31 @@ function HomeView({ state, todayStudied, dueCount, onAddCard, onScan, onImport, 
   const ratio = state.cards.length ? mastered / state.cards.length : 0;
   const dailyXp = (state.reviewLogs ?? []).filter(log => localDateKey(new Date(log.reviewedAt)) === localDateKey()).reduce((sum, log) => sum + [0, 5, 8, 10, 12][log.rating], 0);
   return <>
-    <div className="dashboard-intro"><h2>繼續今天的學習</h2><p>每天一點，讓英文成為習慣。</p></div>
-    <article className="dashboard-progress">
-      <header><h2>今日進度</h2><small>連續 {streak} 天</small></header>
-      <div className="dashboard-total">{todayStudied} / {state.settings.dailyGoal}</div>
+    <div className="today-date">{new Intl.DateTimeFormat("zh-TW",{month:"long",day:"numeric",weekday:"long"}).format(new Date())}</div>
+    <div className="today-workspace"><article className="dashboard-progress">
+      <header><h2>等待複習</h2><small>連續 {streak} 天<br/>今日 {todayStudied} / {state.settings.dailyGoal} 字</small></header>
+      <div className="dashboard-total">{dueCount}<small> 字</small></div>
       <div className="progress-track"><span style={{ width: `${goalProgress}%` }} /></div>
-      <p>待複習 {dueCount} 張 · {dailyXp} XP</p>
-      <button className="primary" disabled={!state.cards.length} onClick={onStudy}>開始複習</button>
-    </article>
+      <p>今日進度 {todayStudied} / {state.settings.dailyGoal} · {dailyXp} XP</p>
+      <button className="primary" disabled={!state.cards.length} onClick={onStudy}><MdPlayArrow size={21}/>開始今天的複習</button>
+      {resumeCount!==null&&<button className="resume-learning" onClick={onQuiz}><MdPlayArrow size={22}/><span><strong>接著上次的測驗</strong><small>已完成 {resumeCount} 題 · 保留原有題序</small></span></button>}
+    </article>{featureWord&&<article className="word-poster"><small>來自你的教材 · {state.decks.find(deck=>deck.id===featureWord.deckId)?.course}</small><strong>{featureWord.word}</strong><p>{featureWord.definition}</p><footer><span>{featureWord.phonetic} · {featureWord.partOfSpeech}</span><button className="round-button" aria-label={`朗讀 ${featureWord.word}`} onClick={()=>speak(featureWord.word,state.settings.speechRate)}><MdPlayArrow size={22}/></button></footer></article>}</div>
     <div className="dashboard-actions">
       <button className="tonal" onClick={onAddCard}><MdAdd size={24} />新增單字</button>
       <button className="tonal" onClick={onScan}><MdDocumentScanner size={24} />掃描匯入</button>
     </div>
     <ListRow title="匯入單字集" subtitle="連結、檔案或貼上文字" icon={MdDownload} onClick={onImport} />
     <ListRow title="測驗" subtitle="選擇資料夾，練習記憶與應用" icon={MdExtension} onClick={onQuiz} />
-    <div className="modern-section"><h2>我的單字庫</h2><button className="icon-button" aria-label="新增資料夾" onClick={onAddFolder}><MdAdd size={24} /></button></div>
+    <PageHeading title="我的教材" action={<button className="icon-button" aria-label="新增資料夾" onClick={onAddFolder}><MdAdd size={24}/></button>}/>
     <div className="chips home-filter"><button className={course === null ? "selected" : ""} onClick={() => setCourse(null)}>全部</button>{Array.from(new Set(state.decks.map(deck => deck.course))).map(value => <button key={value} className={course === value ? "selected" : ""} onClick={() => setCourse(value)}>{value}</button>)}</div>
     <ListRow title="所有單字" subtitle={`${state.cards.length} 張 · 已精通 ${mastered} 張`} icon={MdCollectionsBookmark} onClick={() => onOpen("__all__")} />
     {[...state.decks].sort((a,b) => a.order-b.order).filter(deck => course === null || deck.course === course).map(deck => <ListRow key={deck.id} title={deck.name} subtitle={`${deck.course} · ${state.cards.filter(card => card.deckId === deck.id).length} 張`} icon={MdFolder} onClick={() => onOpen(deck.id)} />)}
-    <article className="statistics-card parity-statistics">
-      <h2>學習進度</h2>
+    <details className="statistics-card parity-statistics"><summary>學習進度與近七天紀錄</summary>
       <div className="statistics-summary"><div><strong>{state.cards.length}</strong><small>總數</small></div><div><strong>{mastered}</strong><small>精通</small></div><div><strong>{dueCount}</strong><small>到期</small></div></div>
       <p className="statistics-caption">精通 {Math.floor(ratio * 100)}%</p><div className="progress-track mastery-track"><span style={{width:`${ratio * 100}%`}} /></div>
       <p className="statistics-caption">近 7 天</p>
       <div className="weekly-chart">{recentDays.map(day => <div key={day.key}><b>{day.count || "\u00a0"}</b><span className={day.count ? "" : "zero"} style={{ height: `${Math.max(.1, day.count / maxDay) * 58}px` }} /><small>週{day.label}</small></div>)}</div>
-    </article>
+    </details>
   </>;
 }
 
@@ -410,14 +416,14 @@ function FoldersView({ state, onStateChange, onAdd, onOpen, onStudy, onQuiz, onU
   const decks = state.decks.filter(deck => course === "全部" || deck.course === course).sort((a, b) => a.order - b.order);
   const shiftDeck = (id: string, offset: number) => { const visibleIds = decks.map(deck => deck.id); const index = visibleIds.indexOf(id); const target = Math.max(0, Math.min(visibleIds.length - 1, index + offset)); if (index < 0 || target === index) return; visibleIds.splice(index, 1); visibleIds.splice(target, 0, id); const scope = new Set(visibleIds); let cursor = 0; const ids = [...state.decks].sort((a, b) => a.order - b.order).map(deck => scope.has(deck.id) ? visibleIds[cursor++] : deck.id); onReorder(ids); };
   return <>
-    <FolderSharing state={state} course={course ?? "全部"} onChange={onStateChange}/>
+    <FolderSharing state={state} course={course ?? "全部"} onChange={onStateChange} onOpen={onOpen}/>
     {course === null ? <><div className="modern-section"><h2>我的課程</h2><button className="text-button" onClick={() => setCourse("全部")}>全部資料夾</button></div><div className="course-book-grid">{courses.filter(value => value !== "全部").map(value => {
       const cover = state.courseCovers?.[value]; const scoped = state.decks.filter(deck => deck.course === value);
       return <article key={value} className="course-book-item"><button className={`course-book ${cover?.startsWith("data:") ? "has-photo" : ""}`} style={{ backgroundColor: courseCoverColor(cover) }} onClick={() => setCourse(value)} aria-label={`開啟課程 ${value}`}>
         {cover?.startsWith("data:") && <img src={cover} alt=""/>}<span className="course-book-spine"/><strong>{value}</strong><small>{scoped.length} 個資料夾 · {state.cards.filter(card => scoped.some(deck => deck.id === card.deckId)).length} 字</small>
       </button><button className="course-cover-edit icon-button" aria-label={`自訂 ${value} 封面`} onClick={() => setCoverCourse(value)}><MdEdit size={18}/></button></article>;
     })}</div>{!state.decks.length && <Empty title="建立你的第一個課程" text="新增資料夾時，可以一起建立課程。" action="新增資料夾" onAction={onAdd}/>}</> : <>
-    <div className="course-breadcrumb"><button className="icon-button" aria-label="返回課程" onClick={() => setCourse(null)}><MdArrowBack size={22}/></button><h2>{course === "全部" ? "全部資料夾" : course}</h2>{course !== "全部" && <button className="icon-button" aria-label="自訂課程封面" onClick={() => setCoverCourse(course)}><MdPhotoLibrary size={22}/></button>}</div>
+    <div className="course-breadcrumb"><button className="icon-button" aria-label="返回課程" onClick={() => setCourse(null)}><MdArrowBack size={22}/></button><h2>{course === "全部" ? "全部資料夾" : course}</h2>{course!=="全部"&&<button className="icon-button" aria-label="分享課程" onClick={()=>window.dispatchEvent(new CustomEvent("vocab-share-course",{detail:course}))}><MdShare size={22}/></button>}{course !== "全部" && <button className="icon-button" aria-label="自訂課程封面" onClick={() => setCoverCourse(course)}><MdPhotoLibrary size={22}/></button>}</div>
     {course !== "全部" && <button className="text-button rename-course-button" onClick={() => { setRenamingCourse(course); setCourseName(course); }}><MdEdit size={18} />重新命名課程</button>}
     {decks.length === 0 ? <Empty title="還沒有資料夾" text="點右下角新增第一個資料夾。" /> :
       <div className="modern-stack">{decks.map(deck => {
@@ -452,6 +458,7 @@ function HubView({ kind, state, onStudy, onQuiz, onManage }: { kind: "study" | "
   const courses = ["全部", ...Array.from(new Set(state.decks.map(deck => deck.course)))];
   const decks = [...state.decks].filter(deck => course === "全部" || deck.course === course).sort((a,b) => a.order-b.order);
   return <>
+    <PageHeading title={kind==="study"?"翻卡學習":"單字測驗"} subtitle={kind==="study"?"選擇教材開始複習；左右滑動記錄熟悉度。":"選擇教材、題型與題數，接續或開始新測驗。"}/>
     {state.decks.length > 0 && <div className="modern-filter"><p>選擇課程</p><div className="chips">{courses.map(value => <button key={value} className={course === value ? "selected" : ""} onClick={() => setCourse(value)}>{value === "全部" ? `全部資料夾 (${state.decks.length})` : `${value} (${state.decks.filter(deck => deck.course === value).length})`}</button>)}</div>
     <button className="primary" disabled={!state.cards.some(card => course === "全部" || state.decks.find(deck => deck.id === card.deckId)?.course === course)} onClick={() => (kind === "study" ? onStudy : onQuiz)(course === "全部" ? "__all__" : `__course__${course}`)}><MdStyle size={24} />{kind === "study" ? "複習全部" : "測驗全部"} · {course === "全部" ? state.cards.length : state.cards.filter(card => state.decks.find(deck => deck.id === card.deckId)?.course === course).length}</button></div>}
     {decks.length === 0 ? <Empty title="還沒有資料夾" text="先建立資料夾，再開始學習。" /> : <div className="modern-stack">{decks.map(deck => {
@@ -540,11 +547,12 @@ function CardSheet({ state, deck, cards, initialCardId, onCommit, onClose, onSav
     <form className="form card-form" onSubmit={submit}>
       {recovery&&<div className="draft-recovery"><p>找到上次未完成的編輯草稿。{editing&&recovery.baseline!==baseline?"原資料已更新，請先複製草稿內容，避免覆蓋新內容。":"可恢復後繼續編輯。"}</p><button type="button" className="secondary" disabled={editing&&recovery.baseline!==baseline} onClick={()=>{setDrafts(recovery.rows.map(row=>({...row,aiBusy:false})));setOriginalIds(recovery.originalIds);setRecovery(null);}}>恢復草稿</button><button type="button" className="secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(recovery.rows,null,2));}}>複製草稿</button><button type="button" className="secondary" onClick={()=>{localStorage.removeItem(draftKey);setRecovery(null);}}>捨棄草稿</button></div>}
       <section className="save-location-card"><div><strong>儲存位置</strong><small>{deck ? `會加入「${deck.name}」最後方` : "請選擇資料夾"}</small></div><DeckPicker state={state} value={deck?.id ?? ""} onChange={id => { if (!editing || commitEditing()) onDeckChange(id); }} /></section>
+      <MaterialContext course={deck?.course} folder={deck?.name}/><label className="editor-jump"><span>跳至單字 · {drafts.length} 張</span><select aria-label="跳至單字" defaultValue={initialCardId??""} onChange={event=>{document.getElementById(`editor-row-${event.target.value}`)?.scrollIntoView({block:"start",behavior:"smooth"});}}><option value="" disabled>選擇單字</option>{drafts.map((row,index)=><option key={row.rowId} value={row.rowId}>{String(index+1).padStart(2,"0")}　{row.word||"新單字"}</option>)}</select></label>
       <button type="button" className="insert-card-divider" onClick={() => insertAt(0)}><MdAdd size={17} />新增到最前面</button>
-      {drafts.map((draft,index) => <div className={`manual-card-group ${draft.cardId === initialCardId ? "editor-target" : ""}`} data-card-id={draft.cardId} ref={draft.cardId === initialCardId ? focused : undefined} key={draft.rowId}><article className="manual-card-editor"><div className="manual-card-head"><strong>單字卡 #{index+1}</strong><button type="button" className="icon-button card-ai-icon" aria-label="AI 補齊" disabled={!draft.word.trim() || draft.aiBusy} onClick={() => completeAi(draft.rowId)}>{draft.aiBusy ? <span className="spinner" /> : <MdAutoAwesome size={24} />}</button><button type="button" className="icon-button delete-draft-icon" aria-label="刪除這張輸入卡" onClick={() => draft.cardId ? setPendingDelete(draft.rowId) : removeRow(draft.rowId)}><MdDelete size={24} /></button></div><label><span>英文單字</span><input autoFocus={index===0 && !editing} value={draft.word} onChange={event => update(draft.rowId,"word",event.target.value)} autoCapitalize="none" /></label>
+      {drafts.map((draft,index) => <div id={`editor-row-${draft.rowId}`} className={`manual-card-group ${draft.cardId === initialCardId ? "editor-target" : ""}`} data-card-id={draft.cardId} ref={draft.cardId === initialCardId ? focused : undefined} key={draft.rowId}><article className="manual-card-editor"><div className="manual-card-head"><strong>{String(index+1).padStart(2,"0")}　{draft.word||"新單字"}</strong><button type="button" className="icon-button card-ai-icon" aria-label="AI 補齊" disabled={!draft.word.trim() || draft.aiBusy} onClick={() => completeAi(draft.rowId)}>{draft.aiBusy ? <span className="spinner" /> : <MdAutoAwesome size={24} />}</button><button type="button" className="icon-button delete-draft-icon" aria-label="刪除這張輸入卡" onClick={() => draft.cardId ? setPendingDelete(draft.rowId) : removeRow(draft.rowId)}><MdDelete size={24} /></button></div><label><span>英文單字</span><input autoFocus={index===0 && !editing} value={draft.word} onChange={event => update(draft.rowId,"word",event.target.value)} autoCapitalize="none" /></label>
       <div className="form-grid compact-fields"><label><span>詞性</span><input value={draft.partOfSpeech} onChange={event => update(draft.rowId,"partOfSpeech",event.target.value)} /></label><label><span>音標</span><input value={draft.phonetic} onChange={event => update(draft.rowId,"phonetic",event.target.value)} /></label></div>
       <label><span>繁體中文定義</span><textarea rows={2} value={draft.definition} onChange={event => update(draft.rowId,"definition",event.target.value)} /></label><label><span>英文例句</span><textarea rows={2} value={draft.exampleSentence} onChange={event => update(draft.rowId,"exampleSentence",event.target.value)} /></label>
-      <label><span>中文翻譯</span><textarea rows={2} value={draft.exampleTranslation} onChange={event => update(draft.rowId,"exampleTranslation",event.target.value)} /></label></article><button type="button" className="insert-card-divider" onClick={() => insertAt(index+1)}><MdAdd size={17} />在此新增</button></div>)}
+      <label><span>中文翻譯</span><textarea rows={2} value={draft.exampleTranslation} onChange={event => update(draft.rowId,"exampleTranslation",event.target.value)} /></label><details className="editor-extras"><summary>筆記與進階欄位</summary><label><span>個人筆記</span><textarea rows={3} value={draft.notes} onChange={event=>update(draft.rowId,"notes",event.target.value)}/></label></details></article><button type="button" className="insert-card-divider" onClick={() => insertAt(index+1)}><MdAdd size={17} />在此新增</button></div>)}
       {aiStatus && <p className="hint ai-fill-status">{aiStatus}</p>}
       <div className="card-save-footer"><button className="primary wide" disabled={!canSave || anyBusy}>{editing ? "儲存全部變更" : "儲存全部並繼續新增"}</button></div><button type="button" className="fab add-card-fab" aria-label="新增單字" onClick={() => insertAt(drafts.length)}><MdAdd size={24} /></button>
     </form>
@@ -716,6 +724,7 @@ function ImportSheet({ state, onClose, onImport }: { state: VocabState; onClose:
   ];
   return <SheetFrame title="匯入線上單字集" subtitle="分享網址、平台搜尋、貼上文字與檔案" onClose={onClose} wide>
     {state.decks.length === 0 ? <Empty title="請先建立資料夾" text="匯入的單字需要一個儲存位置。" /> : <div className="form"><DeckPicker state={state} value={deckId} onChange={setDeckId} />
+      <WorkflowSteps current={candidates.length?2:busy?1:0} labels={["選擇來源","讀取內容","校對匯入"]}/>
       <div className="chips import-mode-chips">{([['url','分享網址'],['search','搜尋平台'],['paste','貼上文字'],['file','選擇檔案']] as const).map(([value,label]) => <button key={value} className={importMode === value ? "selected" : ""} onClick={() => setImportMode(value)}>{label}</button>)}</div>
       {(importMode === "url" || importMode === "search") && <ImportDeviceHelp onPaste={() => setImportMode("paste")} onFile={() => setImportMode("file")} />}
       {importMode === "url" && <div className="import-panel"><label><span>貼上分享網址</span><input inputMode="url" value={shareUrl} onChange={event => setShareUrl(event.target.value)} placeholder="https://…" /></label><button className="primary wide" disabled={busy || !shareUrl.trim()} onClick={readSharedUrl}><MdImportExport size={20} />辨識公開內容</button><p className="hint">可嘗試讀取 Quizlet、Brainscape、Knowt、Cram 的公開分享頁；不保證網站允許伺服器讀取。若出現拒絕存取、登入或人機驗證，請查看上方裝置使用方法或改用文字／檔案匯入。</p></div>}
@@ -752,6 +761,7 @@ function ScanSheet({ state, onClose, onImport }: { state: VocabState; onClose: (
   };
   const close=()=>{if((busy||jobs.length)&&!confirm("離開掃描？未匯入的圖片與結果將不保留，進行中的 AI 作業會取消。"))return;abort.current?.abort();onClose();};
   return <SheetFrame title="掃描匯入" subtitle="主單字辨識 · 多張圖片 · 逐張保留結果" onClose={close} wide>
+    <WorkflowSteps current={candidates.length?2:jobs.length?1:0} labels={["加入圖片","指定辨識範圍","校對與匯入"]}/>
     <div className="form scan-page">{state.decks.length?<DeckPicker state={state} value={deckId} onChange={setDeckId}/>:<p className="scan-warning">尚未建立資料夾；可以先辨識，但無法匯入。</p>}<label>辨識範圍<select disabled={busy} value={mode} onChange={e=>setMode(e.target.value as ScanMode)}><option value="headwords">主單字／標題（不從例句挑字）</option><option value="listed">全部明列詞條</option><option value="custom">自訂範圍</option></select></label>{mode==="custom"&&<label>自訂指令<input disabled={busy} value={custom} onChange={e=>setCustom(e.target.value)} placeholder="例如：只辨識左欄畫線的單字"/></label>}<p className="hint">辨識範圍套用於尚未成功的圖片；已完成圖片保留原結果。</p>
     <div className="scan-source-list"><button aria-label="拍照" disabled={busy} onClick={()=>camera.current?.click()}><MdCameraAlt size={24}/></button><button aria-label="掃描" disabled={busy} onClick={()=>setScanOpen(true)}><MdDocumentScanner size={24}/></button><button aria-label="相片" disabled={busy} onClick={()=>photos.current?.click()}><MdPhotoLibrary size={24}/></button><button aria-label="檔案" disabled={busy} onClick={()=>files.current?.click()}><MdFolder size={24}/></button></div>
     {!jobs.length&&<div className="empty scan-empty"><MdDocumentScanner size={28}/><h3>等待辨識內容</h3><p>拍照、掃描文件，或多選現有圖片；只會辨識你指定的詞條範圍。</p></div>}

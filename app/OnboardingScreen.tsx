@@ -21,7 +21,7 @@ export function OnboardingScreen({ onComplete, preview = false }: { onComplete: 
     onComplete(goal, allowed);
   }
   return <main className="android-onboarding"><section className="onboarding-card">
-    <div className="onboarding-flame"><MdLocalFireDepartment size={38} /></div>
+    <div className="onboarding-brand"><MdLocalFireDepartment size={26} aria-hidden="true"/><span>Vocab</span></div>
     <h1>每天想學幾張？</h1>
     <p>先選一個舒服的目標，之後隨時能調整。</p>
     <div className="android-goal-options">{[10, 20, 30, 50].map(value => <button key={value} className={`android-filter-chip ${goal === value ? "selected" : ""}`} aria-pressed={goal === value} onClick={() => setGoal(value)}>{value}</button>)}</div>
