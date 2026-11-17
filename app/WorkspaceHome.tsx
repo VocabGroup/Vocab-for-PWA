@@ -1,0 +1,14 @@
+"use client";
+import {MdChevronRight,MdPlayArrow,MdHistory} from "react-icons/md";
+import type {VocabState} from "./types";
+import {localDateKey,streakStats} from "./learning";
+export function WorkspaceHome({state,dueCount,todayStudied,onLibrary,onOpen}:{state:VocabState;dueCount:number;todayStudied:number;onLibrary:()=>void;onOpen:(id:string)=>void}){
+ const recent=(state.recentDecks??[]).map(r=>state.decks.find(d=>d.id===r.id)).filter(d=>!!d).slice(0,5);
+ const days=Array.from({length:7},(_,i)=>{const date=new Date();date.setDate(date.getDate()-6+i);return {label:"日一二三四五六"[date.getDay()],count:state.logs.find(l=>l.date===localDateKey(date))?.count??0};});
+ const streak=streakStats(state).current;
+ const xp=(state.reviewLogs??[]).filter(r=>localDateKey(new Date(r.reviewedAt))===localDateKey()).reduce((sum,r)=>sum+([0,5,8,10,12][r.rating]??0),0);
+ return <><div className="today-date">{new Intl.DateTimeFormat("zh-TW",{month:"long",day:"numeric",weekday:"long"}).format(new Date())}</div><article className="dashboard-progress"><header><h2>今天，繼續一點點</h2><small>連續 {streak??0} 天</small></header><div className="dashboard-total">{dueCount}<small> 字待複習</small></div><div className="progress-track"><span style={{width:`${Math.min(100,todayStudied/Math.max(1,state.settings.dailyGoal)*100)}%`}}/></div><p>今日 {todayStudied} / {state.settings.dailyGoal} 字 · {xp} XP</p><button className="primary" onClick={onLibrary}><MdPlayArrow/>開始今天的複習</button></article>
+ <div className="modern-section recent-heading"><h2>最近學習</h2><button className="icon-button" aria-label="前往教材庫" onClick={onLibrary}><MdChevronRight/></button></div><div className="recent-folders">{recent.map(d=><button key={d.id} onClick={()=>onOpen(d.id)}><MdHistory/><span><strong>{d.name}</strong><small>{d.course} · {state.cards.filter(c=>c.deckId===d.id).length} 字</small></span><MdChevronRight/></button>)}{!recent.length&&<p className="muted">開啟教材後，最近學習的資料夾會顯示在這裡。</p>}</div>
+ <section className="android-statistics" aria-label="學習紀錄"><h2>學習紀錄</h2><div className="statistics-badges"><div><strong>{state.cards.length}</strong><span>總數</span></div><div><strong>{state.cards.filter(c=>c.mastered).length}</strong><span>精通</span></div><div><strong>{dueCount}</strong><span>到期</span></div></div><p className="statistics-caption">精通 {state.cards.length?Math.floor(state.cards.filter(c=>c.mastered).length/state.cards.length*100):0}%</p><div className="progress-track mastery-track"><span style={{width:`${state.cards.length?state.cards.filter(c=>c.mastered).length/state.cards.length*100:0}%`}}/></div><h3>近 7 天</h3><div className="android-week-chart">{days.map((d,i)=><div key={i}><b>{d.count||"\u00a0"}</b><span className={d.count?"":"zero"} style={{height:`${Math.max(.1,d.count/Math.max(5,...days.map(day=>day.count)))*58}px`}}/><small>週{d.label}</small></div>)}</div></section></>;
+
+}

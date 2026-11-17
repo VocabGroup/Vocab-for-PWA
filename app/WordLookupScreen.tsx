@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { MdAdd, MdArrowBack, MdAutoAwesome, MdClose, MdHistory, MdSearch, MdVolumeUp } from "react-icons/md";
 import {useDialogFocus} from "./use-share-dialog-focus";
 import type { Card, VocabState } from "./types";
@@ -11,8 +11,8 @@ import { lookupBrowserDictionary } from "./browser-dictionary";
 type Entry = LookupEntry;
 const historyKey = "vocab-word-search-history";
 
-export function WordLookupScreen({ state, onClose, onOpenCard, onAdd, onComplete }: { state: VocabState; onClose: () => void; onOpenCard: (card: Card) => void; onAdd: (entry: Entry, deckId: string) => void; onComplete: (entry: Entry) => Promise<Partial<Card>> }) {
-  const [query, setQuery] = useState(""); const [searched, setSearched] = useState(""); const [history, setHistory] = useState<string[]>([]);
+export function WordLookupScreen({ state, onClose, onOpenCard, onAdd, onComplete, initialQuery="" }: { initialQuery?:string;state: VocabState; onClose: () => void; onOpenCard: (card: Card) => void; onAdd: (entry: Entry, deckId: string) => void; onComplete: (entry: Entry) => Promise<Partial<Card>> }) {
+  const [query, setQuery] = useState(initialQuery); const [searched, setSearched] = useState(""); const [history, setHistory] = useState<string[]>([]);
   const [result, setResult] = useState<Entry | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const [picker, setPicker] = useState(false); const [aiBusy, setAiBusy] = useState(false);
   useDialogFocus(picker,()=>setPicker(false),".lookup-picker-dialog");
   const abort = useRef<AbortController | null>(null);
@@ -30,6 +30,8 @@ export function WordLookupScreen({ state, onClose, onOpenCard, onAdd, onComplete
     } catch (cause) { if (abort.current === controller) setError(controller.signal.aborted ? "字典查詢逾時，請稍後重試或使用下方的原網站；本機結果仍可使用。" : cause instanceof Error ? cause.message : "線上查詢失敗；仍可查看本機結果。"); }
     finally { clearTimeout(timeout); if (abort.current === controller) setLoading(false); }
   }
+  const initialSearch=useEffectEvent(search);
+  useEffect(()=>{let active=true;queueMicrotask(()=>{if(active&&initialQuery)void initialSearch(initialQuery);});return()=>{active=false;};},[initialQuery]);
   const matches = searched ? state.cards.filter(card => `${card.word} ${card.definition}`.toLocaleLowerCase().includes(searched.toLocaleLowerCase())) : [];
   return <div className="sheet-backdrop page-backdrop"><section className="sheet sheet-wide lookup-screen" role="main"><header><button className="icon-button" aria-label="返回" onClick={onClose}><MdArrowBack size={24} /></button><form className="lookup-search" onSubmit={event => { event.preventDefault(); void search(); }}><input autoFocus aria-label="搜尋英文單字或中文解釋" placeholder="搜尋英文單字或中文解釋" value={query} onChange={event => { abort.current?.abort(); abort.current=null; setLoading(false); setQuery(event.target.value); setSearched(""); }} autoCapitalize="none" enterKeyHint="search" /><button className="icon-button" aria-label="搜尋" disabled={!query.trim() || loading}>{loading ? <span className="spinner" /> : <MdSearch size={24} />}</button></form></header>
     <div className="sheet-body lookup-body"><label className="lookup-source-selector"><span>查詢來源</span><select aria-label="查詢來源" value={source} onChange={event => { abort.current?.abort(); abort.current=null; setLoading(false); setSource(event.target.value as typeof source); setResult(null); setError(""); setSearched(""); }}><option value="AUTO">自動選擇（優先 ECDICT）</option><option value="ECDICT">ECDICT 英漢字典</option><option value="GOOGLE">Google 翻譯（中英雙向）</option><option value="CAMBRIDGE">劍橋英漢辭典</option><option value="FREE">Free Dictionary（英文解釋）</option>{source === "WIKTIONARY" && <option value="WIKTIONARY">維基詞典（尚未移植）</option>}</select></label>{!searched ? <><div className="lookup-history-heading"><h3>搜尋紀錄</h3>{!!history.length && <button onClick={() => saveHistory([])}>全部清除</button>}</div>{history.map(item => <div className="lookup-history" key={item}><MdHistory size={24} /><button onClick={() => void search(item)}>{item}</button><button className="icon-button" aria-label={`刪除搜尋紀錄 ${item}`} onClick={() => saveHistory(history.filter(value => value !== item))}><MdClose size={24} /></button></div>)}{!history.length && <p className="hint">ECDICT 提供英漢釋義；Google 支援中英雙向翻譯。同時搜尋自己的單字庫。</p>}</> : <>

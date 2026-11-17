@@ -3,7 +3,7 @@ import type { Card, Deck, VocabState } from "./types";
 const fields = ["word", "phonetic", "partOfSpeech", "definition", "exampleSentence", "exampleTranslation", "notes"] as const;
 export type SharedCard = Pick<Card, typeof fields[number]>;
 export type SharedDeck = Pick<Deck, "name" | "course" | "description" | "color"> & { cards: SharedCard[] };
-export type FolderShare = { format: "vocab-folder-share"; version: 1; decks: SharedDeck[] };
+export type FolderShare = { format: "vocab-folder-share"; version: 1; decks: SharedDeck[];kind?:"course"|"folder";title?:string };
 function text(value: unknown, limit = 20000): string {
   if (value !== undefined && typeof value !== "string") throw new Error("分享檔文字欄位格式錯誤");
   if ((value as string | undefined)?.length && (value as string).length > limit) throw new Error("分享檔欄位過長");
@@ -34,7 +34,7 @@ export function parseFolderShare(raw: string): FolderShare {
     const color = text(deck.color, 30);
     return { name, course: text(deck.course, 200) || "通用", description: text(deck.description), color: /^#[\da-f]{6}$/i.test(color) ? color : "#426B63", cards };
   });
-  return { format: "vocab-folder-share", version: 1, decks };
+  return { format: "vocab-folder-share", version: 1, decks,...(value.kind==="course"||value.kind==="folder"?{kind:value.kind}:{}),...(typeof value.title==="string"?{title:text(value.title,200)}:{}) };
 }
 export function importFolders(state: VocabState, share: FolderShare, course: string, skipDuplicates: boolean, id:()=>string = () => crypto.randomUUID(), deckIds?:string[]): {state: VocabState; ids: string[]} {
   const now = Date.now(), decks = [...state.decks], cards = [...state.cards], ids: string[] = [];

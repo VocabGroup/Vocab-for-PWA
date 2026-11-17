@@ -1,3 +1,5 @@
+export type Course = { id: string; name: string; cover: string; createdAt: number };
+export type ReadingArticle = { id: string; title: string; text: string; words: string[]; createdAt: number; updatedAt: number; progress: number; request?: string; missing?: string[]; done?: boolean };
 export type Deck = {
   id: string;
   name: string;
@@ -107,6 +109,12 @@ export type AppSettings = {
 
 export type VocabState = {
   version: 1;
+  aiConversations?: import("./chat-history").ChatConversation[];
+  activeAiConversationId?:string;
+  courses?: Course[];
+  articles?: ReadingArticle[];
+  articleDraftMigrated?: boolean;
+  recentDecks?: { id: string; openedAt: number }[];
   courseCovers?: Record<string, string>;
   decks: Deck[];
   cards: Card[];

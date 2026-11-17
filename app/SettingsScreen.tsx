@@ -2,7 +2,7 @@
 import {version as APP_VERSION} from "../package.json";
 
 import { ChangeEvent, ReactNode, useEffect, useRef, useState } from "react";
-import { MdAdd, MdArrowBack, MdDelete, MdDeleteForever, MdEdit, MdOpenInNew, MdRemove, MdRestore, MdVolumeUp, MdPalette, MdStyle, MdAutoAwesome, MdDocumentScanner, MdSearch, MdSystemUpdateAlt, MdStorage } from "react-icons/md";
+import { MdAdd, MdClose, MdArrowBack, MdDelete, MdDeleteForever, MdEdit, MdOpenInNew, MdRemove, MdRestore, MdVolumeUp, MdPalette, MdStyle, MdAutoAwesome, MdDocumentScanner, MdSearch, MdSystemUpdateAlt, MdStorage } from "react-icons/md";
 import { PageHeading } from "./EditorialUi";
 import type { AppSettings, VocabState } from "./types";
 import { downloadAndroidBackup, normalizeBackup } from "./storage";
@@ -107,7 +107,7 @@ export function SettingsScreen({ state, updateSettings, onClose, onBackup, onRes
       {status && <p className="android-settings-status" role="status">{status}</p>}
     </div>
     {dialogOpen && <div className="nested-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) closeDialog(); }}><section ref={dialogRef} className="nested-dialog android-alert" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
-      <h3 id="settings-dialog-title">{clearDialog ? "清空所有資料？" : pendingRestore ? "還原完整備份？" : tutorial ? "AI 連線教學" : "提醒時間"}</h3>
+      <header><h3 id="settings-dialog-title">{clearDialog ? "清空所有資料？" : pendingRestore ? "還原完整備份？" : tutorial ? "AI 連線教學" : "提醒時間"}</h3><button className="icon-button" aria-label="關閉" onClick={closeDialog}><MdClose/></button></header>
       {clearDialog ? <p>會刪除所有單字卡、資料夾、學習紀錄、設定及本機 API Key，並回到首次設定。此動作無法復原。</p> : pendingRestore ? <><p>將以「{restoreName}」完整覆蓋這台裝置目前的資料，無法合併。</p><p>{pendingRestore.decks.length} 個資料夾 · {pendingRestore.cards.length} 張單字卡 · {pendingRestore.quizRecords.length} 筆測驗紀錄</p></> : tutorial ? <><strong>{provider.name}</strong><p>登入供應商 → 建立 API Key → 選供應商、貼上 Key → 加入 Key → 選模型 → 按「測試這組」。不要將 Key 傳到聊天室、截圖或 GitHub。</p><a href={provider.keyUrl} target="_blank" rel="noreferrer">前往取得 API Key</a></> : <input aria-label="提醒時間" type="time" value={timeInput} onChange={event => setTimeInput(event.target.value)} />}
       <div className="android-dialog-actions"><button className="android-text-button" onClick={() => { setClearDialog(false); setPendingRestore(null); setTutorial(false); setEditingTime(null); }}>{tutorial ? "完成" : "取消"}</button>{!tutorial && <button className="android-text-button" onClick={() => { if (clearDialog) { setClearDialog(false); onClear(); } else if (pendingRestore) { setPrompt(pendingRestore.settings.aiWordPrompt); setImagePrompt(pendingRestore.settings.aiImagePrompt); onRestore(pendingRestore); setPendingRestore(null); setStatus("還原完成"); } else if (editingTime !== null && timeInput) { saveTimes(editingTime < 0 ? [...times, timeInput] : times.map((time, index) => index === editingTime ? timeInput : time)); setEditingTime(null); } }}>{clearDialog ? "確定全部清空" : pendingRestore ? "確認還原" : "確定"}</button>}</div>
     </section></div>}

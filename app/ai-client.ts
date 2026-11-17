@@ -8,7 +8,7 @@ export const AI_PROVIDERS = {
 } as const;
 export type AiImage = { mime: string; base64: string };
 export type AiMessage = { role: "user" | "assistant"; text: string };
-export type AiOptions = { onText?: (text:string)=>void; timeoutMs?:number; maxTokens?:number };
+export type AiOptions = { attachments?:AiImage[]; onText?: (text:string)=>void; timeoutMs?:number; maxTokens?:number };
 
 export function partialReply(raw:string):string {
   const match=raw.match(/"reply"\s*:\s*"((?:\\[\s\S]|[^"\\])*)/);if(!match)return "";
@@ -90,12 +90,14 @@ export async function requestAiCredential(provider: AppSettings["aiProvider"], k
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   let url: string; let body: unknown;
   const history = messages.length ? messages : [{ role: "user" as const, text: "請依照上述指令回答。" }];
-  const tokens=options.maxTokens??(image?8192:4096), streaming=!!options.onText;
+  const attachments=[...(image?[image]:[]),...(options.attachments??[])];
+  if(attachments.some(a=>a.mime==="application/pdf")&&provider!=="gemini")throw Error("PDF 附件目前請選擇 Google Gemini，或先轉成圖片／文字再傳送。");
+  const tokens=options.maxTokens??(attachments.length?8192:4096), streaming=!!options.onText;
   if (provider === "gemini") {
     url = `${base.replace(/\/$/, "")}/models/${encodeURIComponent(model)}:${streaming?"streamGenerateContent?alt=sse":"generateContent"}`;
     headers["x-goog-api-key"] = key;
     const contents = history.map((message, index) => ({ role: message.role === "assistant" ? "model" : "user", parts: [
-      { text: message.text }, ...(image && index === history.length - 1 ? [{ inlineData: { mimeType: image.mime, data: image.base64 } }] : []),
+      { text: message.text }, ...(index === history.length - 1 ? attachments.map(file=>({inlineData:{mimeType:file.mime,data:file.base64}})) : []),
     ] }));
     body = { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { responseMimeType: "application/json", maxOutputTokens: tokens } };
   } else if (provider === "anthropic") {
@@ -103,12 +105,12 @@ export async function requestAiCredential(provider: AppSettings["aiProvider"], k
     headers["x-api-key"] = key; headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
     body = { model, max_tokens: tokens, ...(streaming?{stream:true}:{}), system, messages: history.map((message, index) => ({ role: message.role, content: [
-      { type: "text", text: message.text }, ...(image && index === history.length - 1 ? [{ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } }] : []),
+      { type: "text", text: message.text }, ...(index === history.length - 1 ? attachments.map(file=>({type:"image",source:{type:"base64",media_type:file.mime,data:file.base64}})) : []),
     ] })) };
   } else {
     url = `${base.replace(/\/$/, "")}/chat/completions`; headers.Authorization = `Bearer ${key}`;
     body = { model, ...(provider === "openai" ? { max_completion_tokens: tokens } : { max_tokens: tokens }), ...(streaming?{stream:true}:{}), response_format: { type: "json_object" }, messages: [{ role: "system", content: system }, ...history.map((message, index) => ({ role: message.role,
-      content: image && index === history.length - 1 ? [{ type: "text", text: message.text }, { type: "image_url", image_url: { url: `data:${image.mime};base64,${image.base64}` } }] : message.text,
+      content: attachments.length && index === history.length - 1 ? [{type:"text",text:message.text},...attachments.map(file=>({type:"image_url",image_url:{url:`data:${file.mime};base64,${file.base64}`}}))] : message.text,
     }))] };
   }
   const response = await fetchAiWithRetry(url, { method: "POST", headers, body: JSON.stringify(body) },provider,signal);

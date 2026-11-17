@@ -1,6 +1,8 @@
 import type { Card, Deck, StudyLog, VocabState } from "./types";
 import { DEFAULT_IMAGE_PROMPT, DEFAULT_WORD_PROMPT } from "./prompts";
 import { normalizeCourseCovers } from "./course-covers";
+import {coursesFor} from "./workspace-data";
+import {normalizeConversations} from "./chat-history";
 
 export const STORAGE_KEY = "vocab-pwa-state-v1";
 
@@ -106,6 +108,12 @@ function normalizeWebBackup(raw: Partial<VocabState>): VocabState {
   return {
     version: 1,
     courseCovers: normalizeCourseCovers(raw.courseCovers),
+    aiConversations:normalizeConversations(raw.aiConversations),
+    activeAiConversationId:typeof raw.activeAiConversationId==="string"?raw.activeAiConversationId:undefined,
+    courses: coursesFor({...raw,decks,courseCovers:normalizeCourseCovers(raw.courseCovers)}),
+    articles: Array.isArray(raw.articles)?raw.articles.filter(a=>a&&typeof a.id==="string"&&typeof a.title==="string"&&typeof a.text==="string").map(a=>({...a,words:Array.isArray(a.words)?a.words.filter(w=>typeof w==="string"):[],progress:Number.isFinite(a.progress)?Math.max(0,Math.min(1,a.progress)):0})):[],
+    articleDraftMigrated:raw.articleDraftMigrated===true,
+    recentDecks:Array.isArray(raw.recentDecks)?raw.recentDecks.filter(d=>d&&typeof d.id==="string"&&Number.isFinite(d.openedAt)&&deckIds.has(d.id)).sort((a,b)=>b.openedAt-a.openedAt).slice(0,50):[],
     decks: decks.map((deck, index) => ({ ...deck, order: Number.isFinite(deck.order) ? deck.order : index, color: deck.color || "#426B63", createdAt: Number.isFinite(deck.createdAt) ? deck.createdAt : Date.now() })),
     cards: cards.map((card, index) => ({ ...card, order: Number.isFinite(card.order) ? card.order : index, phonetic: card.phonetic || "", partOfSpeech: card.partOfSpeech || "", exampleSentence: card.exampleSentence || "", exampleTranslation: card.exampleTranslation || "", notes: card.notes || "", mastered: Boolean(card.mastered), favorite: Boolean(card.favorite), suspended: Boolean(card.suspended), mistakeCount: Number.isFinite(card.mistakeCount) ? card.mistakeCount : 0, nextReviewAt: Number.isFinite(card.nextReviewAt) ? card.nextReviewAt : Date.now(), intervalDays: valueNumber(card.intervalDays, 0), easeFactor: valueNumber(card.easeFactor, 2.5), repetitionCount: valueNumber(card.repetitionCount, 0) })),
     logs: Array.isArray(raw.logs) ? raw.logs.filter(log => log && typeof log.date === "string" && Number.isFinite(log.count)) : [],

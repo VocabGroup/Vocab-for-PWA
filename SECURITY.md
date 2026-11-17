@@ -8,7 +8,11 @@ Report vulnerabilities privately through the repository's GitHub security adviso
 - Backups exclude personal AI credentials. AI requests send the selected content and the user's own key to the selected provider. Scanner images stay local until the user explicitly starts AI recognition.
 - No maintainer Gemini, OpenAI, GitHub or Cloudflare key is distributed with the application. Do not configure such keys in public frontend environment variables.
 - Hosting providers receive normal connection metadata. Dictionary queries and public-deck imports contact third-party services.
-- Optional URL/QR sharing uploads only explicitly selected, whitelisted teaching content to the maintainer's Cloudflare KV for 7 days. Anyone holding the link can read it. Learning state and API credentials are excluded; notes are opt-in. There is no public listing. See SHARING_SETUP.md for expiry, revocation and best-effort quota limitations.
+- Optional URL/QR sharing uploads only explicitly selected, whitelisted teaching content to the maintainer's Cloudflare KV for 7 days. Anyone holding the link can read it. Learning state and API credentials are excluded; the current sharing UI excludes personal notes. There is no public listing. See SHARING_SETUP.md for expiry, revocation and best-effort quota limitations.
+
+## Release review — 2026-11-17
+
+Full npm audit reports zero known advisories. AI attachments are processed locally and sent only after Send to the user-selected provider. Chat records retain attachment names and bounded raster thumbnails, not original files. Incognito chat does not persist local messages or article drafts; it does not change the provider’s data retention. Model card updates are limited to content fields in the selected folders; review state is preserved. Source and deployment outputs are checked for secrets before publication.
 
 ## Dependency review — 2026-11-12
 

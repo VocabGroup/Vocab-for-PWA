@@ -1,0 +1,2 @@
+"use client";
+export function AiActivity({label="AI 正在輸入",detail,article=false}:{label?:string;detail?:string;article?:boolean}){return <div className={`ai-activity ${article?"ai-writing":""}`} role="status" aria-label={label}><div className="ai-activity-bubble"><span className="ai-typing-dots" aria-hidden="true"><i/><i/><i/></span><span>{!article&&detail?detail:label}</span></div>{article&&detail&&<small>{detail}</small>}{article&&<div className="ai-writing-lines" aria-hidden="true"><i/><i/><i/></div>}</div>;}

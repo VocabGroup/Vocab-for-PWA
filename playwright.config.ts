@@ -9,7 +9,7 @@ export default defineConfig({
   use: { baseURL: process.env.VOCAB_TEST_ORIGIN || "http://127.0.0.1:3100", trace: "retain-on-failure" },
   projects: [
     { name: "iphone-webkit", use: { ...devices["iPhone 13"], browserName: "webkit" } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 7"], browserName: "chromium" } },
+    { name: "mobile-chromium", use: { ...devices["Pixel 7"], browserName: "chromium",...(process.env.VOCAB_CHROME_CHANNEL?{channel:process.env.VOCAB_CHROME_CHANNEL}:{}) } },
   ],
   webServer: process.env.VOCAB_TEST_ORIGIN ? undefined : {
     command: process.env.VOCAB_PAGES_TEST === "1" ? "wrangler pages dev --port 3100 --ip 127.0.0.1" : "npm run start -- --port 3100 --ip 127.0.0.1",

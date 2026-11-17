@@ -1,11 +1,12 @@
 "use client";
+import {confirmAction} from "./ConfirmationDialog";
 /* eslint-disable @next/next/no-img-element -- Local blob previews must never be sent to an image optimizer. */
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CornerEditor } from "scanic";
 import { LiveDocumentCamera } from "./LiveDocumentCamera";
-import { MdArrowBack, MdCameraAlt, MdPhotoLibrary, MdDeleteOutline, MdAdd, MdCropRotate, MdFilter, MdRotateRight, MdClose } from "react-icons/md";
+import { MdCameraAlt, MdPhotoLibrary, MdDeleteOutline, MdAdd, MdCropRotate, MdFilter, MdRotateRight, MdClose } from "react-icons/md";
 
 type Page = { file: File; url: string; original:File };
 
@@ -31,7 +32,7 @@ export function DocumentScanner({ initialFile, canRecognize, onRecognize, onClos
   useEffect(()=>{
     const previous=document.activeElement as HTMLElement|null, main=document.querySelector("main"), inert=main?.inert, overflow=document.body.style.overflow;
     if(main)main.inert=true;document.body.style.overflow="hidden";dialog.current?.focus();
-    const trap=(event:KeyboardEvent)=>{if(event.key!=="Tab")return;const controls=[...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not([hidden]),[tabindex="0"]')??[])];const index=controls.indexOf(document.activeElement as HTMLElement);if(index<0 || (!event.shiftKey && index===controls.length-1) || (event.shiftKey && index===0)){event.preventDefault();controls[event.shiftKey ? controls.length-1:0]?.focus();}};
+    const trap=(event:KeyboardEvent)=>{if(event.key!=="Tab"||!dialog.current?.contains(document.activeElement))return;const controls=[...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not([hidden]),[tabindex="0"]')??[])];const index=controls.indexOf(document.activeElement as HTMLElement);if(index<0 || (!event.shiftKey && index===controls.length-1) || (event.shiftKey && index===0)){event.preventDefault();controls[event.shiftKey ? controls.length-1:0]?.focus();}};
     document.addEventListener("keydown",trap);return()=>{document.removeEventListener("keydown",trap);if(main)main.inert=inert ?? false;document.body.style.overflow=overflow;previous?.focus({preventScroll:true});};
   },[]);
 
@@ -94,9 +95,9 @@ export function DocumentScanner({ initialFile, canRecognize, onRecognize, onClos
     try {if(await onRecognize(pages.map(page=>page.file)))onClose();else setMessage("AI 辨識失敗，裁切頁面已保留，請關閉後檢查設定或再試一次。");}
     finally {if(alive.current)setWorking(false);}
   }
-  const close=()=>{if(working)return;if((pages.length||active)&&!confirm("取消掃描作業？未送出的頁面會移除。"))return;onClose();};
+  const close=async()=>{if(working)return;if((pages.length||active)&&!await confirmAction("取消掃描作業？未送出的頁面會移除。"))return;onClose();};
   return createPortal(<div ref={dialog} tabIndex={-1} className={`document-scan-overlay scanner-dark ${live?"scanner-live":"scanner-review"}`} role="dialog" aria-modal="true" aria-labelledby="document-scan-title">
-    <header><button className="icon-button" aria-label="返回掃描匯入" disabled={working} onClick={close}>{live?<MdClose size={28}/>:<MdArrowBack size={28}/>}</button><h2 id="document-scan-title">{live?"文件掃描":"編輯掃描頁面"}</h2></header>
+    <header><h2 id="document-scan-title">{live?"文件掃描":"編輯掃描頁面"}</h2><button className="icon-button" aria-label="返回掃描匯入" disabled={working} onClick={close}><MdClose size={24}/></button></header>
     <div className="document-scan-body">
       {live?<LiveDocumentCamera onCapture={choose} onPhotos={()=>photos.current?.click()}/>:<>
         <div className="scan-preview-stage">{active?<div className="document-corner-host" ref={host}/>:pages[selected]?<img className="scan-review-image" src={pages[selected].url} alt={`掃描第 ${selected+1} 頁預覽`}/>:<p>選擇照片或拍攝文件</p>}{!active&&!!pages.length&&<div className="scan-preview-overlay"><button aria-label="重新調整四角" disabled={working} onClick={()=>{setEditing(selected);setActive(pages[selected].file);setReady(false);setWorking(true);}}><MdCropRotate size={24}/></button><button aria-label="刪除目前頁面" disabled={working} onClick={()=>{setPages(current=>current.filter((_,i)=>i!==selected));setSelected(Math.max(0,selected-1));}}><MdDeleteOutline size={24}/></button></div>}</div>

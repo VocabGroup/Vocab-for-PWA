@@ -11,6 +11,7 @@ export function useShareDialogFocus(active:boolean,onClose:()=>void,selector='.s
     const controls=()=>[...root.querySelectorAll<HTMLElement>('button:not(:disabled),input:not([hidden]):not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary')].filter(element=>element.getClientRects().length>0);
     if(!root.contains(document.activeElement))controls()[0]?.focus({preventScroll:true});
     const key=(event:KeyboardEvent)=>{
+      if(!root.contains(document.activeElement))return;
       if(event.key==="Escape"){event.preventDefault();close();return;}
       if(event.key!=="Tab")return;
       const items=controls(),index=items.indexOf(document.activeElement as HTMLElement);

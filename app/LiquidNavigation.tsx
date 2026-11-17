@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { MdHome, MdFolder, MdStyle, MdAutoAwesome, MdSearch } from "react-icons/md";
+import { MdHome, MdFolder, MdCollectionsBookmark, MdAutoAwesome, MdSearch, MdAdd } from "react-icons/md";
 
-type Destination = "home" | "folders" | "study" | "ai";
-const items = [{ id: "home", label: "今天", Icon: MdHome }, { id: "folders", label: "教材", Icon: MdFolder }, { id: "study", label: "練習", Icon: MdStyle }, { id: "ai", label: "助理", Icon: MdAutoAwesome }] as const;
+type Destination = "home" | "folders" | "articles" | "ai";
+const items = [{ id: "home", label: "今天", Icon: MdHome }, { id: "folders", label: "教材庫", Icon: MdFolder }, { id: "articles", label: "文章", Icon: MdCollectionsBookmark }, { id: "ai", label: "AI", Icon: MdAutoAwesome }] as const;
 
-export function LiquidNavigation({ selected, onSelect, onSearch }: { selected: Destination; onSelect: (tab: Destination) => void; onSearch: () => void }) {
+export function LiquidNavigation({ selected, onSelect, onSearch, adding=false }: { selected: Destination; onSelect: (tab: Destination) => void; onSearch: () => void; adding?:boolean }) {
   const bubble = useRef<HTMLSpanElement>(null), group = useRef<HTMLDivElement>(null);
   const position = useRef(0), frame = useRef(0);
   const index = items.findIndex(item => item.id === selected);
@@ -35,5 +35,5 @@ export function LiquidNavigation({ selected, onSelect, onSearch }: { selected: D
     onPointerCancel={() => { drag.current = null; position.current = index; if (bubble.current) bubble.current.style.transform = `translateX(${index * 100}%)`; }}>
       <span className="liquid-selection-bubble" aria-hidden="true" ref={bubble}/>
       {items.map(({id, label, Icon}) => <button key={id} className={id === selected ? "active" : ""} aria-current={id === selected ? "page" : undefined} onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } onSelect(id); }}><Icon size={24}/><span>{label}</span></button>)}
-    </div><button className="liquid-search" aria-label="搜尋單字" onClick={onSearch}><MdSearch size={25}/></button></nav>;
+    </div><button className="liquid-search" aria-label={adding?"新增":"搜尋單字"} onClick={onSearch}>{adding?<MdAdd size={27}/>:<MdSearch size={25}/>}</button></nav>;
 }

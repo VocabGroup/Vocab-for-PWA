@@ -4,6 +4,10 @@ import "./parity.css";
 import "./liquid.css";
 import "./editorial.css";
 import "./viewport.css";
+import "./workspace.css";
+import "./dialogs.css";
+import "./ai-chat.css";
+import {ConfirmationDialog} from "./ConfirmationDialog";
 import { PwaRegister } from "./PwaRegister";
 
 export const metadata: Metadata = {
@@ -46,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="zh-Hant">
       <body>
         <PwaRegister />
+        <ConfirmationDialog/>
         {children}
       </body>
     </html>

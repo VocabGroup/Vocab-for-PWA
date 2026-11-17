@@ -1,6 +1,12 @@
 import type { Card, VocabState } from "./types";
 export type CardFields = Pick<Card,"word"|"phonetic"|"partOfSpeech"|"definition"|"exampleSentence"|"exampleTranslation"|"notes">;
 export type EditorRow = CardFields & { cardId?: string; rowId: string };
+export function editorRowSignature(rows:EditorRow[]):string{return JSON.stringify(rows.map(({rowId,word,definition,phonetic,partOfSpeech,exampleSentence,exampleTranslation,notes})=>({rowId,word:word.trim(),definition:definition.trim(),phonetic,partOfSpeech,exampleSentence,exampleTranslation,notes})));}
+export function autosaveEditorRows(cards:Card[],rows:EditorRow[]):{rows:EditorRow[];incomplete:number}{
+ let incomplete=0;const complete:EditorRow[]=[];
+ for(const row of rows){if(row.word.trim()&&row.definition.trim()){complete.push(row);continue;}if(row.word.trim()||row.definition.trim()||row.cardId)incomplete++;const saved=row.cardId?cards.find(c=>c.id===row.cardId):undefined;if(saved)complete.push({...saved,cardId:saved.id,rowId:row.rowId});}
+ return {rows:complete,incomplete};
+}
 
 export function commitCardEdits(state: VocabState, deckId: string, rows: EditorRow[], originalIds: string[]): VocabState {
   if (!state.decks.some(deck=>deck.id===deckId)) throw new Error("資料夾已不存在，無法儲存");

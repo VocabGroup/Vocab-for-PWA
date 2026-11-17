@@ -84,6 +84,7 @@ export function PwaRegister() {
     document.body.style.overflow = "hidden";
     dialog.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const keyboard = (event: KeyboardEvent) => {
+      if(!dialog.current?.contains(document.activeElement))return;
       if (event.key === "Escape") setHelpOpen(false);
       if (event.key !== "Tab") return;
       const controls = dialog.current?.querySelectorAll<HTMLElement>('button, a[href], input, [tabindex="0"]');

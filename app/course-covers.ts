@@ -3,11 +3,19 @@ export const COVER_PRESETS = [
   { id: "ice", name: "冰川藍", color: "#e6f3f7" },
   { id: "cornflower", name: "矢車菊藍", color: "#dce5fa" },
   { id: "sea", name: "海灣藍", color: "#cfe5ed" },
+  { id: "lavender", name: "薰衣草", color: "#e7e0f5" },
+  { id: "rose", name: "玫瑰粉", color: "#f4dfe5" },
+  { id: "mint", name: "薄荷綠", color: "#dcefe5" },
+  { id: "sage", name: "鼠尾草", color: "#dde7d5" },
+  { id: "sand", name: "沙岸米", color: "#f1e7d2" },
+  { id: "peach", name: "蜜桃", color: "#f5dfd1" },
+  { id: "slate", name: "霧灰", color: "#dce3ea" },
+  { id: "lemon", name: "奶油黃", color: "#f5efce" },
 ] as const;
 
 // Covers are local raster data only: no remote requests, SVG or executable URLs.
 export function validCourseCover(value: unknown): value is string {
-  return typeof value === "string" && (COVER_PRESETS.some(p => value === `preset:${p.id}`) ||
+  return typeof value === "string" && (/^#[a-f\d]{6}$/i.test(value) || COVER_PRESETS.some(p => value === `preset:${p.id}`) ||
     (value.length <= 800_000 && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)));
 }
 export function normalizeCourseCovers(value: unknown): Record<string, string> {
@@ -15,8 +23,10 @@ export function normalizeCourseCovers(value: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(value).filter(([key, cover]) => key.length <= 500 && validCourseCover(cover)).slice(0, 200));
 }
 export function courseCoverColor(cover?: string) {
+  if(cover&&/^#[a-f\d]{6}$/i.test(cover))return cover;
   return COVER_PRESETS.find(p => cover === `preset:${p.id}`)?.color ?? COVER_PRESETS[0].color;
 }
+export function courseCoverInk(cover?:string){if(cover?.startsWith("data:"))return "#ffffff";const color=courseCoverColor(cover),rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));return (rgb[0]*299+rgb[1]*587+rgb[2]*114)/1000>150?"#19354d":"#ffffff";}
 export async function prepareCourseCover(file: File): Promise<string> {
   if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) throw Error("請選擇 12 MB 以內的圖片。");
   const url = URL.createObjectURL(file);
