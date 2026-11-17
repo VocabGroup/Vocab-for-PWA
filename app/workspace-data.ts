@@ -10,6 +10,16 @@ export function rememberDeck(state:VocabState,id:string,now=Date.now()):VocabSta
  if(!state.decks.some(d=>d.id===id))return state;
  return {...state,recentDecks:[{id,openedAt:now},...(state.recentDecks??[]).filter(d=>d.id!==id&&state.decks.some(deck=>deck.id===d.id))].slice(0,50)};
 }
+export function deleteCourse(state:VocabState,name:string):VocabState{
+ const courses=coursesFor(state);
+ if(!courses.some(course=>course.name===name))return state;
+ const deckIds=new Set(state.decks.filter(deck=>deck.course===name).map(deck=>deck.id));
+ const cardIds=new Set(state.cards.filter(card=>deckIds.has(card.deckId)).map(card=>card.id));
+ return {...state,courses:courses.filter(course=>course.name!==name),courseCovers:Object.fromEntries(Object.entries(state.courseCovers??{}).filter(([course])=>course!==name)),
+  decks:state.decks.filter(deck=>!deckIds.has(deck.id)),cards:state.cards.filter(card=>!deckIds.has(card.deckId)),
+  reviewLogs:state.reviewLogs?.filter(log=>!cardIds.has(log.cardId)),recentDecks:state.recentDecks?.filter(deck=>!deckIds.has(deck.id)),
+  quizRecords:state.quizRecords.filter(record=>!deckIds.has(record.deckId)).map(record=>({...record,wrongCardIds:record.wrongCardIds.filter(id=>!cardIds.has(id))}))};
+}
 export type ConflictPolicy="skip"|"overwrite";
 const key=(word:string)=>word.trim().toLocaleLowerCase();
 const content=(source:VocabState["cards"][number],target:VocabState["cards"][number])=>({...target,word:source.word,phonetic:source.phonetic,partOfSpeech:source.partOfSpeech,definition:source.definition,exampleSentence:source.exampleSentence,exampleTranslation:source.exampleTranslation,notes:source.notes});

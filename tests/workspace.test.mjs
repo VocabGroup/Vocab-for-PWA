@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {loadSource} from "./load-source.mjs";
-const {coursesFor,rememberDeck,transferFolders,copyWords,moveWords}=loadSource("app/workspace-data.ts");
+const {coursesFor,rememberDeck,transferFolders,copyWords,moveWords,deleteCourse}=loadSource("app/workspace-data.ts");
 const {parseStoredState}=loadSource("app/storage.ts");
 const {parseFolderShare}=loadSource("app/folder-sharing.ts");
 const {validCourseCover,courseCoverInk}=loadSource("app/course-covers.ts");
@@ -12,6 +12,12 @@ test("chat scopes validate selected folders and history deletion also removes ar
 test("incomplete autosave preserves existing card data while complete edits retain progress",()=>{const s=fixture(),saved=s.cards[0],row={...saved,cardId:saved.id,rowId:saved.id};const incomplete=autosaveEditorRows(s.cards,[{...row,definition:""},{...row,cardId:undefined,rowId:"new",word:"new",definition:""}]);assert.equal(incomplete.incomplete,2);assert.equal(incomplete.rows.length,1);assert.equal(commitCardEdits(s,"a",incomplete.rows,[saved.id]).cards.find(c=>c.id===saved.id).definition,saved.definition);const edited=commitCardEdits(s,"a",autosaveEditorRows(s.cards,[{...row,definition:"新的定義"}]).rows,[saved.id]);assert.equal(edited.cards[0].repetitionCount,7);assert.equal(edited.cards[0].notes,"keep");assert.equal(edited.cards[0].definition,"新的定義");});
 test("chat histories survive backup and import archived non-private conversations",()=>{const conversation={id:"chat",title:"Keep",createdAt:1,updatedAt:2,messages:[{role:"user",text:"Hello"},{role:"assistant",text:"Hi"}]};const restored=parseStoredState({...fixture(),aiConversations:[conversation],activeAiConversationId:"chat"});assert.deepEqual(restored.aiConversations,[conversation]);assert.equal(restored.activeAiConversationId,"chat");assert.equal(conversationsFor({...restored,androidArchive:{assistantConversations:[{id:"old",title:"Old"},{id:"private",incognito:true}],assistantMessages:[{conversationId:"old",role:"USER",content:"Saved"},{conversationId:"private",role:"USER",content:"Private"}]}}).length,2);});
 const fixture=()=>({version:1,decks:[{id:"a",name:"第一課",course:"A",order:0},{id:"b",name:"第一課",course:"B",order:1}],cards:[{id:"c",deckId:"a",word:"persist",definition:"堅持",notes:"keep",mastered:true,favorite:true,repetitionCount:7,nextReviewAt:9999,order:0}],logs:[],quizRecords:[],settings:{onboardingDone:true},courseCovers:{A:"#123456"}});
+test("deleting courses removes their contents and references without resurrecting covers or changing other courses",()=>{
+ const s=fixture();s.cards.push({...s.cards[0],id:"other",deckId:"b"});s.courses=[{id:"empty",name:"空課程",cover:"#ABCDEF",createdAt:1}];s.courseCovers["空課程"]="#ABCDEF";
+ s.reviewLogs=[{cardId:"c",rating:3,reviewedAt:1},{cardId:"other",rating:4,reviewedAt:2}];s.recentDecks=[{id:"a",openedAt:1},{id:"b",openedAt:2}];s.quizRecords=[{id:"qa",deckId:"a",wrongCardIds:["c"]},{id:"qb",deckId:"b",wrongCardIds:["other"]}];
+ const original=structuredClone(s),next=deleteCourse(s,"A");assert.deepEqual(next.decks.map(d=>d.id),["b"]);assert.deepEqual(next.cards.map(c=>c.id),["other"]);assert.equal(next.cards[0].repetitionCount,7);assert.deepEqual(next.reviewLogs.map(l=>l.cardId),["other"]);assert.deepEqual(next.quizRecords.map(q=>q.id),["qb"]);assert.deepEqual(next.recentDecks.map(d=>d.id),["b"]);assert.ok(!coursesFor(next).some(c=>c.name==="A"));assert.equal(next.courseCovers.A,undefined);assert.deepEqual(s,original);
+ const emptyDeleted=deleteCourse(next,"空課程"),restored=parseStoredState(JSON.parse(JSON.stringify(emptyDeleted)));assert.ok(!coursesFor(restored).some(c=>c.name==="空課程"));assert.equal(restored.cards[0].id,"other");assert.equal(restored.cards[0].repetitionCount,7);assert.equal(deleteCourse(s,"missing"),s);
+});
 test("legacy courses migrate and empty courses, covers, articles and recent visits survive backup",()=>{
  const s=parseStoredState({...fixture(),courses:[{id:"empty",name:"空課程",cover:"#ABCDEF",createdAt:1}],articles:[{id:"article",title:"保留文章",text:"English",words:["English"],progress:.4}],androidArchive:{version:8,grammarNotes:[{id:7}]}});
  assert.deepEqual(coursesFor(s).map(c=>c.name),["空課程","A","B"]);assert.equal(s.courses.find(c=>c.name==="A").cover,"#123456");
